@@ -1,1 +1,3 @@
-pip install streamlit streamlit-drawable-canvas shapely geopandas
+pip install streamlit 
+pip install streamlit-drawable-canvas 
+pip install shapely geopandas
