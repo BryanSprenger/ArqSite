@@ -1,18 +1,171 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CAD Web Prototype</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebCAD Prototype</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      display: block;
+    }
+    #toolbar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 5px;
+      z-index: 10;
+    }
+    #toolbar button {
+      margin: 2px;
+    }
+  </style>
 </head>
 <body>
   <div id="toolbar">
-    <button id="toggle-snap">Snap: OFF</button>
-    <button id="toggle-ortho">Ortogonal: OFF</button>
+    <button id="toggleSnap">Snap: Off</button>
+    <button id="toggleOrtho">Ortho: Off</button>
   </div>
-  <canvas id="c" width="1200" height="800"></canvas>
-  <script src="main.js"></script>
+  <canvas id="cadCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('cadCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let lines = [];
+    let currentLine = null;
+    let snap = false;
+    let ortho = false;
+    let dragging = false;
+    let panOffset = { x: 0, y: 0 };
+    let zoom = 1;
+    let isPanning = false;
+    let lastMousePos = { x: 0, y: 0 };
+
+    document.getElementById('toggleSnap').onclick = () => {
+      snap = !snap;
+      document.getElementById('toggleSnap').innerText = `Snap: ${snap ? 'On' : 'Off'}`;
+    };
+
+    document.getElementById('toggleOrtho').onclick = () => {
+      ortho = !ortho;
+      document.getElementById('toggleOrtho').innerText = `Ortho: ${ortho ? 'On' : 'Off'}`;
+    };
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 1) {
+        isPanning = true;
+        lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
+      }
+
+      const x = (e.offsetX - panOffset.x) / zoom;
+      const y = (e.offsetY - panOffset.y) / zoom;
+
+      let point = { x, y };
+      if (snap && lines.length) {
+        const last = lines[lines.length - 1];
+        const lastPt = last[last.length - 1];
+        if (ortho) {
+          if (Math.abs(x - lastPt.x) > Math.abs(y - lastPt.y)) {
+            point.y = lastPt.y;
+          } else {
+            point.x = lastPt.x;
+          }
+        }
+      }
+
+      if (!currentLine) {
+        currentLine = [point];
+      } else {
+        currentLine.push(point);
+        if (currentLine.length >= 2) {
+          lines.push([...currentLine]);
+          currentLine = [point];
+        }
+      }
+
+      draw();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (isPanning) {
+        const dx = e.clientX - lastMousePos.x;
+        const dy = e.clientY - lastMousePos.y;
+        panOffset.x += dx;
+        panOffset.y += dy;
+        lastMousePos = { x: e.clientX, y: e.clientY };
+        draw();
+        return;
+      }
+
+      if (currentLine && currentLine.length > 0) {
+        const lastPt = currentLine[currentLine.length - 1];
+        let x = (e.offsetX - panOffset.x) / zoom;
+        let y = (e.offsetY - panOffset.y) / zoom;
+
+        if (ortho) {
+          if (Math.abs(x - lastPt.x) > Math.abs(y - lastPt.y)) {
+            y = lastPt.y;
+          } else {
+            x = lastPt.x;
+          }
+        }
+
+        draw();
+        ctx.strokeStyle = 'black';
+        ctx.beginPath();
+        ctx.moveTo(lastPt.x * zoom + panOffset.x, lastPt.y * zoom + panOffset.y);
+        ctx.lineTo(x * zoom + panOffset.x, y * zoom + panOffset.y);
+        ctx.stroke();
+      }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      if (e.button === 1) {
+        isPanning = false;
+      }
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      const delta = -e.deltaY * 0.001;
+      const mouseX = e.offsetX;
+      const mouseY = e.offsetY;
+
+      const wx = (mouseX - panOffset.x) / zoom;
+      const wy = (mouseY - panOffset.y) / zoom;
+
+      zoom *= 1 + delta;
+
+      panOffset.x = mouseX - wx * zoom;
+      panOffset.y = mouseY - wy * zoom;
+
+      draw();
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = 'black';
+      ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+      lines.forEach(line => {
+        ctx.beginPath();
+        ctx.moveTo(line[0].x * zoom + panOffset.x, line[0].y * zoom + panOffset.y);
+        ctx.lineTo(line[1].x * zoom + panOffset.x, line[1].y * zoom + panOffset.y);
+        ctx.stroke();
+      });
+    }
+
+    draw();
+  </script>
 </body>
 </html>
 
