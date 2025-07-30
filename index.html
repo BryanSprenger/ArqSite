@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Editor CAD Web com Snap e Orto</title>
+  <meta charset="UTF-8">
+  <title>CAD-like Drawing Tool</title>
   <style>
     html, body {
       margin: 0;
@@ -12,160 +11,135 @@
     }
     canvas {
       display: block;
-      background-color: #f0f0f0;
+      background: #f5f5f5;
     }
-    #toolbar {
+    .toolbar {
       position: absolute;
       top: 10px;
-      right: 10px;
+      left: 10px;
       background: white;
-      border: 1px solid #ccc;
       padding: 10px;
-      z-index: 100;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      z-index: 10;
     }
-    #toolbar input {
-      margin-right: 5px;
+    .toolbar label {
+      display: block;
     }
   </style>
 </head>
 <body>
-  <div id="toolbar">
-    <label><input type="checkbox" id="snapToggle"> Snap</label><br>
-    <label><input type="checkbox" id="orthoToggle"> Orto</label>
+  <div class="toolbar">
+    <label><input type="checkbox" id="snapToggle"> Snap</label>
+    <label><input type="checkbox" id="orthoToggle"> Ortogonal</label>
   </div>
-  <canvas id="canvas"></canvas>
+  <canvas id="c"></canvas>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
   <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const canvas = new fabric.Canvas('c', {
+      backgroundColor: '#f5f5f5',
+      selection: false,
+      preserveObjectStacking: true
+    });
 
-    let isDrawing = false;
+    canvas.setWidth(window.innerWidth);
+    canvas.setHeight(window.innerHeight);
+
     let isPanning = false;
-    let startX, startY;
-    let panX = 0, panY = 0;
-    let scale = 1;
-    let polygon = [];
-
+    let lastPosX, lastPosY;
     let snapEnabled = false;
     let orthoEnabled = false;
+    let drawing = false;
+    let currentLine = null;
+    let points = [];
 
-    document.getElementById('snapToggle').addEventListener('change', (e) => {
-      snapEnabled = e.target.checked;
-    });
+    // Add event listeners for checkboxes
+    document.getElementById('snapToggle').addEventListener('change', e => snapEnabled = e.target.checked);
+    document.getElementById('orthoToggle').addEventListener('change', e => orthoEnabled = e.target.checked);
 
-    document.getElementById('orthoToggle').addEventListener('change', (e) => {
-      orthoEnabled = e.target.checked;
-    });
-
-    canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 1) {
+    // Pan and zoom
+    canvas.on('mouse:down', function(opt) {
+      const evt = opt.e;
+      if (evt.button === 1) {
         isPanning = true;
-        startX = e.clientX;
-        startY = e.clientY;
-      } else if (e.button === 0) {
-        isDrawing = true;
-        let x = (e.offsetX - panX) / scale;
-        let y = (e.offsetY - panY) / scale;
+        lastPosX = evt.clientX;
+        lastPosY = evt.clientY;
+      } else if (evt.button === 0) {
+        const pointer = canvas.getPointer(evt);
 
-        if (orthoEnabled && polygon.length > 0) {
-          const last = polygon[polygon.length - 1];
-          if (Math.abs(x - last.x) > Math.abs(y - last.y)) {
-            y = last.y;
-          } else {
-            x = last.x;
-          }
+        if (drawing && currentLine) {
+          const p = adjustPoint(pointer);
+          currentLine.set({ x2: p.x, y2: p.y });
+          currentLine.setCoords();
+          canvas.renderAll();
+          currentLine = null;
+          drawing = false;
+        } else {
+          const p = adjustPoint(pointer);
+          const line = new fabric.Line([p.x, p.y, p.x, p.y], {
+            stroke: 'black',
+            strokeWidth: 2,
+            fill: 'gray',
+            selectable: true,
+            hasBorders: false,
+            hasControls: false,
+            objectCaching: false
+          });
+          canvas.add(line);
+          currentLine = line;
+          drawing = true;
         }
-
-        polygon.push({ x, y });
       }
     });
 
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.on('mouse:move', function(opt) {
+      const evt = opt.e;
       if (isPanning) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        panX += dx;
-        panY += dy;
-        startX = e.clientX;
-        startY = e.clientY;
-        draw();
-      } else if (isDrawing) {
-        draw(e.offsetX, e.offsetY);
+        const delta = new fabric.Point(evt.clientX - lastPosX, evt.clientY - lastPosY);
+        canvas.relativePan(delta);
+        lastPosX = evt.clientX;
+        lastPosY = evt.clientY;
+      } else if (drawing && currentLine) {
+        const pointer = adjustPoint(canvas.getPointer(evt));
+        currentLine.set({ x2: pointer.x, y2: pointer.y });
+        currentLine.setCoords();
+        canvas.renderAll();
       }
     });
 
-    canvas.addEventListener('mouseup', (e) => {
-      if (e.button === 1) {
-        isPanning = false;
-      } else if (e.button === 0) {
-        isDrawing = false;
+    canvas.on('mouse:up', function(opt) {
+      isPanning = false;
+    });
+
+    canvas.on('mouse:wheel', function(opt) {
+      const delta = opt.e.deltaY;
+      let zoom = canvas.getZoom();
+      zoom *= 0.999 ** delta;
+      if (zoom > 20) zoom = 20;
+      if (zoom < 0.2) zoom = 0.2;
+      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    });
+
+    function adjustPoint(p) {
+      if (snapEnabled) {
+        const snap = 10;
+        p.x = Math.round(p.x / snap) * snap;
+        p.y = Math.round(p.y / snap) * snap;
       }
-    });
-
-    canvas.addEventListener('wheel', (e) => {
-      const zoomAmount = -e.deltaY * 0.001;
-      scale += zoomAmount;
-      if (scale < 0.1) scale = 0.1;
-      draw();
-    });
-
-    function draw(mouseX, mouseY) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.translate(panX, panY);
-      ctx.scale(scale, scale);
-
-      // desenhar polígono
-      if (polygon.length > 0) {
-        ctx.beginPath();
-        ctx.moveTo(polygon[0].x, polygon[0].y);
-        for (let i = 1; i < polygon.length; i++) {
-          ctx.lineTo(polygon[i].x, polygon[i].y);
+      if (orthoEnabled && currentLine) {
+        const dx = p.x - currentLine.x1;
+        const dy = p.y - currentLine.y1;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          p.y = currentLine.y1;
+        } else {
+          p.x = currentLine.x1;
         }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(128, 128, 128, 0.2)';
-        ctx.strokeStyle = 'black';
-        ctx.fill();
-        ctx.stroke();
-
-        // vértices
-        polygon.forEach(p => {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-          ctx.fillStyle = 'black';
-          ctx.fill();
-        });
       }
-
-      // linha temporária
-      if (mouseX !== undefined && mouseY !== undefined && polygon.length > 0) {
-        const last = polygon[polygon.length - 1];
-        const x = (mouseX - panX) / scale;
-        const y = (mouseY - panY) / scale;
-
-        let drawX = x;
-        let drawY = y;
-
-        if (orthoEnabled) {
-          if (Math.abs(x - last.x) > Math.abs(y - last.y)) {
-            drawY = last.y;
-          } else {
-            drawX = last.x;
-          }
-        }
-
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
-        ctx.lineTo(drawX, drawY);
-        ctx.strokeStyle = 'gray';
-        ctx.stroke();
-      }
-
-      ctx.restore();
+      return p;
     }
-
-    draw();
   </script>
 </body>
 </html>
