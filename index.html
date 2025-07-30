@@ -1,18 +1,171 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Editor CAD Web - Prototype</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Editor CAD Web com Snap e Orto</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    svg { width: 100vw; height: 100vh; background: #f5f5f5; cursor: crosshair; }
-    .grid line { stroke: #ddd; stroke-width: 1; }
-    .poly { fill: rgba(0, 128, 255, 0.2); stroke: #005f9e; stroke-width: 2; }
-    .cota { font: 12px monospace; fill: red; pointer-events: none; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background-color: #f0f0f0;
+    }
+    #toolbar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      padding: 10px;
+      z-index: 100;
+    }
+    #toolbar input {
+      margin-right: 5px;
+    }
   </style>
 </head>
 <body>
-  <svg id="svg"></svg>
-  <script src="script.js"></script>
+  <div id="toolbar">
+    <label><input type="checkbox" id="snapToggle"> Snap</label><br>
+    <label><input type="checkbox" id="orthoToggle"> Orto</label>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let isDrawing = false;
+    let isPanning = false;
+    let startX, startY;
+    let panX = 0, panY = 0;
+    let scale = 1;
+    let polygon = [];
+
+    let snapEnabled = false;
+    let orthoEnabled = false;
+
+    document.getElementById('snapToggle').addEventListener('change', (e) => {
+      snapEnabled = e.target.checked;
+    });
+
+    document.getElementById('orthoToggle').addEventListener('change', (e) => {
+      orthoEnabled = e.target.checked;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 1) {
+        isPanning = true;
+        startX = e.clientX;
+        startY = e.clientY;
+      } else if (e.button === 0) {
+        isDrawing = true;
+        let x = (e.offsetX - panX) / scale;
+        let y = (e.offsetY - panY) / scale;
+
+        if (orthoEnabled && polygon.length > 0) {
+          const last = polygon[polygon.length - 1];
+          if (Math.abs(x - last.x) > Math.abs(y - last.y)) {
+            y = last.y;
+          } else {
+            x = last.x;
+          }
+        }
+
+        polygon.push({ x, y });
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (isPanning) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panX += dx;
+        panY += dy;
+        startX = e.clientX;
+        startY = e.clientY;
+        draw();
+      } else if (isDrawing) {
+        draw(e.offsetX, e.offsetY);
+      }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      if (e.button === 1) {
+        isPanning = false;
+      } else if (e.button === 0) {
+        isDrawing = false;
+      }
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      const zoomAmount = -e.deltaY * 0.001;
+      scale += zoomAmount;
+      if (scale < 0.1) scale = 0.1;
+      draw();
+    });
+
+    function draw(mouseX, mouseY) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(panX, panY);
+      ctx.scale(scale, scale);
+
+      // desenhar polígono
+      if (polygon.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(polygon[0].x, polygon[0].y);
+        for (let i = 1; i < polygon.length; i++) {
+          ctx.lineTo(polygon[i].x, polygon[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(128, 128, 128, 0.2)';
+        ctx.strokeStyle = 'black';
+        ctx.fill();
+        ctx.stroke();
+
+        // vértices
+        polygon.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'black';
+          ctx.fill();
+        });
+      }
+
+      // linha temporária
+      if (mouseX !== undefined && mouseY !== undefined && polygon.length > 0) {
+        const last = polygon[polygon.length - 1];
+        const x = (mouseX - panX) / scale;
+        const y = (mouseY - panY) / scale;
+
+        let drawX = x;
+        let drawY = y;
+
+        if (orthoEnabled) {
+          if (Math.abs(x - last.x) > Math.abs(y - last.y)) {
+            drawY = last.y;
+          } else {
+            drawX = last.x;
+          }
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(drawX, drawY);
+        ctx.strokeStyle = 'gray';
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    draw();
+  </script>
 </body>
 </html>
