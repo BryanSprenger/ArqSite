@@ -1,0 +1,19 @@
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+#toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  background: rgba(255,255,255,0.9);
+  padding: 10px;
+  border-radius: 6px;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+}
+
+canvas {
+  border: 1px solid #ccc;
+}
