@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Editor CAD Web - Prototype</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    svg { width: 100vw; height: 100vh; background: #f5f5f5; cursor: crosshair; }
+    .grid line { stroke: #ddd; stroke-width: 1; }
+    .poly { fill: rgba(0, 128, 255, 0.2); stroke: #005f9e; stroke-width: 2; }
+    .cota { font: 12px monospace; fill: red; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <svg id="svg"></svg>
+  <script src="script.js"></script>
+</body>
+</html>
