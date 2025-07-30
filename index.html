@@ -1,171 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebCAD Prototype</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Protótipo CAD Web</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
+      user-select: none;
     }
     canvas {
-      border: 1px solid #ccc;
       display: block;
+      background: #f0f0f0;
+      cursor: crosshair;
     }
     #toolbar {
       position: absolute;
       top: 10px;
       left: 10px;
       background: white;
-      border: 1px solid #ccc;
-      padding: 5px;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      font-family: sans-serif;
       z-index: 10;
     }
-    #toolbar button {
-      margin: 2px;
+    #toolbar label {
+      margin-right: 10px;
     }
   </style>
 </head>
 <body>
   <div id="toolbar">
-    <button id="toggleSnap">Snap: Off</button>
-    <button id="toggleOrtho">Ortho: Off</button>
+    <label><input type="checkbox" id="snapToggle" checked> Snap</label>
+    <label><input type="checkbox" id="orthoToggle"> Ortho</label>
+    <button onclick="closePolygon()">Fechar Polígono</button>
   </div>
   <canvas id="cadCanvas"></canvas>
-
   <script>
-    const canvas = document.getElementById('cadCanvas');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.getElementById("cadCanvas");
+    const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    let lines = [];
-    let currentLine = null;
-    let snap = false;
-    let ortho = false;
-    let dragging = false;
-    let panOffset = { x: 0, y: 0 };
-    let zoom = 1;
-    let isPanning = false;
-    let lastMousePos = { x: 0, y: 0 };
+    let points = [];
+    let tempPoint = null;
+    let panX = 0, panY = 0;
+    let mouseDown = false;
+    let lastX, lastY;
+    let scale = 1;
+    const SNAP_RADIUS = 10;
+    const COTA_OFFSET = 20;
 
-    document.getElementById('toggleSnap').onclick = () => {
-      snap = !snap;
-      document.getElementById('toggleSnap').innerText = `Snap: ${snap ? 'On' : 'Off'}`;
-    };
-
-    document.getElementById('toggleOrtho').onclick = () => {
-      ortho = !ortho;
-      document.getElementById('toggleOrtho').innerText = `Ortho: ${ortho ? 'On' : 'Off'}`;
-    };
-
-    canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 1) {
-        isPanning = true;
-        lastMousePos = { x: e.clientX, y: e.clientY };
-        return;
-      }
-
-      const x = (e.offsetX - panOffset.x) / zoom;
-      const y = (e.offsetY - panOffset.y) / zoom;
-
-      let point = { x, y };
-      if (snap && lines.length) {
-        const last = lines[lines.length - 1];
-        const lastPt = last[last.length - 1];
-        if (ortho) {
-          if (Math.abs(x - lastPt.x) > Math.abs(y - lastPt.y)) {
-            point.y = lastPt.y;
-          } else {
-            point.x = lastPt.x;
-          }
-        }
-      }
-
-      if (!currentLine) {
-        currentLine = [point];
+    function drawLine(p1, p2, dashed = false) {
+      if (dashed) {
+        ctx.setLineDash([5, 5]);
       } else {
-        currentLine.push(point);
-        if (currentLine.length >= 2) {
-          lines.push([...currentLine]);
-          currentLine = [point];
-        }
+        ctx.setLineDash([]);
       }
-
-      draw();
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-      if (isPanning) {
-        const dx = e.clientX - lastMousePos.x;
-        const dy = e.clientY - lastMousePos.y;
-        panOffset.x += dx;
-        panOffset.y += dy;
-        lastMousePos = { x: e.clientX, y: e.clientY };
-        draw();
-        return;
-      }
-
-      if (currentLine && currentLine.length > 0) {
-        const lastPt = currentLine[currentLine.length - 1];
-        let x = (e.offsetX - panOffset.x) / zoom;
-        let y = (e.offsetY - panOffset.y) / zoom;
-
-        if (ortho) {
-          if (Math.abs(x - lastPt.x) > Math.abs(y - lastPt.y)) {
-            y = lastPt.y;
-          } else {
-            x = lastPt.x;
-          }
-        }
-
-        draw();
-        ctx.strokeStyle = 'black';
-        ctx.beginPath();
-        ctx.moveTo(lastPt.x * zoom + panOffset.x, lastPt.y * zoom + panOffset.y);
-        ctx.lineTo(x * zoom + panOffset.x, y * zoom + panOffset.y);
-        ctx.stroke();
-      }
-    });
-
-    canvas.addEventListener('mouseup', (e) => {
-      if (e.button === 1) {
-        isPanning = false;
-      }
-    });
-
-    canvas.addEventListener('wheel', (e) => {
-      const delta = -e.deltaY * 0.001;
-      const mouseX = e.offsetX;
-      const mouseY = e.offsetY;
-
-      const wx = (mouseX - panOffset.x) / zoom;
-      const wy = (mouseY - panOffset.y) / zoom;
-
-      zoom *= 1 + delta;
-
-      panOffset.x = mouseX - wx * zoom;
-      panOffset.y = mouseY - wy * zoom;
-
-      draw();
-    });
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'black';
-      ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
-      lines.forEach(line => {
-        ctx.beginPath();
-        ctx.moveTo(line[0].x * zoom + panOffset.x, line[0].y * zoom + panOffset.y);
-        ctx.lineTo(line[1].x * zoom + panOffset.x, line[1].y * zoom + panOffset.y);
-        ctx.stroke();
-      });
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
     }
 
-    draw();
+    function drawCircle(p, r, color = 'red') {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    function drawSquare(p, size, color = 'blue') {
+      ctx.beginPath();
+      ctx.rect(p.x - size/2, p.y - size/2, size, size);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    function getMousePos(evt) {
+      return {
+        x: (evt.offsetX - panX) / scale,
+        y: (evt.offsetY - panY) / scale
+      };
+    }
+
+    function snapPoint(p) {
+      const snapEnabled = document.getElementById("snapToggle").checked;
+      if (!snapEnabled) return p;
+      for (const pt of points) {
+        const dx = pt.x - p.x;
+        const dy = pt.y - p.y;
+        if (Math.sqrt(dx*dx + dy*dy) < SNAP_RADIUS / scale) {
+          return pt;
+        }
+      }
+      return p;
+    }
+
+    function orthoAngle(base, next) {
+      const dx = next.x - base.x;
+      const dy = next.y - base.y;
+      const angle = Math.atan2(dy, dx);
+      const step = Math.PI / 12; // 15 deg
+      const snappedAngle = Math.round(angle / step) * step;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      return {
+        x: base.x + dist * Math.cos(snappedAngle),
+        y: base.y + dist * Math.sin(snappedAngle)
+      };
+    }
+
+    function drawDimension(p1, p2) {
+      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const angle = Math.atan2(dy, dx);
+      const offsetX = COTA_OFFSET * Math.sin(angle);
+      const offsetY = -COTA_OFFSET * Math.cos(angle);
+      const start = { x: p1.x + offsetX, y: p1.y + offsetY };
+      const end = { x: p2.x + offsetX, y: p2.y + offsetY };
+
+      drawLine(start, end, true);
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "black";
+      const dist = Math.hypot(dx, dy).toFixed(2);
+      ctx.fillText(dist + " m", mid.x + offsetX + 5, mid.y + offsetY - 5);
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(panX, panY);
+      ctx.scale(scale, scale);
+      ctx.lineWidth = 2 / scale;
+      ctx.strokeStyle = "black";
+      ctx.fillStyle = "rgba(150,150,150,0.2)";
+
+      for (let i = 1; i < points.length; i++) {
+        drawLine(points[i - 1], points[i]);
+        drawDimension(points[i - 1], points[i]);
+      }
+      if (tempPoint) {
+        const last = points[points.length - 1];
+        if (last) drawLine(last, tempPoint);
+      }
+
+      for (const pt of points) {
+        drawSquare(pt, SNAP_RADIUS, "rgba(0,0,255,0.3)");
+        drawCircle(pt, 3);
+      }
+
+      ctx.restore();
+      requestAnimationFrame(render);
+    }
+
+    canvas.addEventListener("mousedown", (e) => {
+      if (e.button === 1) {
+        mouseDown = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        return;
+      }
+      const pos = snapPoint(getMousePos(e));
+      points.push(pos);
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (mouseDown) {
+        panX += e.clientX - lastX;
+        panY += e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      } else {
+        let pos = getMousePos(e);
+        const ortho = document.getElementById("orthoToggle").checked;
+        if (points.length > 0 && ortho) {
+          pos = orthoAngle(points[points.length - 1], pos);
+        }
+        tempPoint = snapPoint(pos);
+      }
+    });
+
+    canvas.addEventListener("mouseup", (e) => {
+      if (e.button === 1) mouseDown = false;
+    });
+
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+      scale *= zoom;
+    });
+
+    function closePolygon() {
+      if (points.length > 2) {
+        points.push(points[0]);
+      }
+    }
+
+    render();
   </script>
 </body>
 </html>
-
