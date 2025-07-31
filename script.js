@@ -1,162 +1,138 @@
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// script.js
+const canvas = document.getElementById('cadCanvas');
+const ctx = canvas.getContext('2d');
 
-let lines = [];
-let undone = [];
+let points = [];
 let currentLine = [];
-let snapping = true;
-let ortho = true;
-let gridSize = 10; // em pixels, mas vamos simular metros
-let snapRadius = 10;
+let snapEnabled = false;
+let orthoEnabled = false;
+let undoStack = [];
+let redoStack = [];
 
-document.getElementById("snapToggle").addEventListener("change", e => snapping = e.target.checked);
-document.getElementById("orthoToggle").addEventListener("change", e => ortho = e.target.checked);
-
-canvas.addEventListener("mousedown", startLine);
-canvas.addEventListener("contextmenu", e => e.preventDefault());
-
-function startLine(e) {
-  const pos = getMousePos(e);
-  const snapped = snapping ? getSnappedPoint(pos) : pos;
-  const point = applyOrtho(snapped);
-
-  if (e.button === 2) return; // botão direito: não faz nada por enquanto
-
-  currentLine.push(point);
-  if (currentLine.length === 2) {
-    lines.push([...currentLine]);
-    currentLine = [currentLine[1]]; // recomeça da última
-    undone = [];
-  }
-  draw();
-}
-
-function undo() {
-  if (lines.length) undone.push(lines.pop());
-  draw();
-}
-
-function redo() {
-  if (undone.length) lines.push(undone.pop());
-  draw();
-}
+let hoverPoint = null;
+let isDragging = false;
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid();
 
-  lines.forEach(line => drawLine(line[0], line[1]));
-  if (currentLine.length === 1) drawPreviewLine(currentLine[0], getMousePos());
-}
-
-function drawLine(p1, p2) {
-  ctx.beginPath();
-  ctx.strokeStyle = "black";
+  // Desenhar linhas existentes
+  ctx.strokeStyle = '#333';
   ctx.lineWidth = 2;
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.stroke();
-  drawDimension(p1, p2);
-  drawSnapBox(p1);
-  drawSnapBox(p2);
-}
-
-function drawPreviewLine(p1, mouse) {
-  const pos = getMousePos(mouse);
-  const snap = snapping ? getSnappedPoint(pos) : pos;
-  const p2 = applyOrtho(snap);
-
   ctx.beginPath();
-  ctx.setLineDash([5, 5]);
-  ctx.strokeStyle = "gray";
-  ctx.lineWidth = 1;
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
+  for (let i = 0; i < points.length - 1; i++) {
+    ctx.moveTo(points[i].x, points[i].y);
+    ctx.lineTo(points[i + 1].x, points[i + 1].y);
+    drawCotagem(points[i], points[i + 1]);
+  }
   ctx.stroke();
-  ctx.setLineDash([]);
+
+  // Desenhar ponto de snap
+  if (hoverPoint) {
+    ctx.fillStyle = 'red';
+    ctx.fillRect(hoverPoint.x - 5, hoverPoint.y - 5, 10, 10);
+  }
+
+  // Linha com mouse
+  if (currentLine.length === 1 && !isDragging) {
+    const { x, y } = currentLine[0];
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(mouse.x, mouse.y);
+    ctx.strokeStyle = '#999';
+    ctx.stroke();
+  }
 }
 
-function drawDimension(p1, p2) {
-  const mid = {
-    x: (p1.x + p2.x) / 2,
-    y: (p1.y + p2.y) / 2
-  };
-
-  const dx = (p2.x - p1.x);
-  const dy = (p2.y - p1.y);
-  const meters = Math.sqrt(dx * dx + dy * dy) / 100;
-
-  ctx.fillStyle = "black";
-  ctx.font = "12px sans-serif";
-  ctx.fillText(`${meters.toFixed(2)} m`, mid.x + 5, mid.y - 5);
+function distance(p1, p2) {
+  return Math.hypot(p1.x - p2.x, p1.y - p2.y);
 }
 
-function drawSnapBox(p) {
-  ctx.beginPath();
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 1;
-  ctx.rect(p.x - snapRadius, p.y - snapRadius, snapRadius * 2, snapRadius * 2);
-  ctx.stroke();
+function snapToPoint(x, y) {
+  return points.find(p => distance(p, { x, y }) < 10);
 }
 
-function getMousePos(evt) {
+function drawCotagem(p1, p2) {
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  const dist = distance(p1, p2) / 10; // assume 10px = 1m
+
+  ctx.fillStyle = 'black';
+  ctx.font = '12px Arial';
+  ctx.fillText(`${dist.toFixed(2)} m`, midX + 5, midY - 5);
+}
+
+let mouse = { x: 0, y: 0 };
+canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
-  return {
-    x: evt.clientX - rect.left,
-    y: evt.clientY - rect.top
+  mouse = {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
   };
-}
 
-function getSnappedPoint(p) {
-  for (let line of lines) {
-    for (let pt of line) {
-      const dist = Math.hypot(p.x - pt.x, p.y - pt.y);
-      if (dist < snapRadius) return pt;
-    }
-  }
-  return p;
-}
-
-function applyOrtho(p) {
-  if (currentLine.length === 0 || !ortho) return p;
-  const origin = currentLine[0];
-  const dx = p.x - origin.x;
-  const dy = p.y - origin.y;
-  const angle = Math.atan2(dy, dx);
-  const angles = [0, 30, 45, 60, 90, 120, 135, 150, 180].map(a => a * Math.PI / 180);
-  const snappedAngle = angles.reduce((a, b) => Math.abs(b - angle) < Math.abs(a - angle) ? b : a);
-  const length = Math.sqrt(dx * dx + dy * dy);
-  return {
-    x: origin.x + length * Math.cos(snappedAngle),
-    y: origin.y + length * Math.sin(snappedAngle)
-  };
-}
-
-function drawGrid() {
-  const spacing = 100; // 100px = 1m
-  ctx.strokeStyle = "#eee";
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x < canvas.width; x += spacing) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  for (let y = 0; y < canvas.height; y += spacing) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-}
-
-canvas.addEventListener("mousemove", e => draw());
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  hoverPoint = snapToPoint(mouse.x, mouse.y);
   draw();
 });
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const snapPoint = snapToPoint(x, y);
+  const newPoint = snapPoint || { x, y };
+
+  if (currentLine.length && snapPoint && distance(currentLine[0], snapPoint) < 10) {
+    // Fechar polígono
+    points.push(currentLine[0]);
+    currentLine = [];
+    saveState();
+  } else {
+    if (orthoEnabled && currentLine.length) {
+      const last = currentLine[currentLine.length - 1];
+      const dx = x - last.x;
+      const dy = y - last.y;
+      const angle = Math.atan2(dy, dx);
+      const snappedAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12); // 15°
+      const length = Math.hypot(dx, dy);
+      const nx = last.x + length * Math.cos(snappedAngle);
+      const ny = last.y + length * Math.sin(snappedAngle);
+      currentLine.push({ x: nx, y: ny });
+      points.push({ x: nx, y: ny });
+    } else {
+      currentLine.push(newPoint);
+      points.push(newPoint);
+    }
+    saveState();
+  }
+  draw();
+});
+
+function saveState() {
+  undoStack.push([...points]);
+  redoStack = [];
+}
+
+document.getElementById('undoBtn').onclick = () => {
+  if (undoStack.length > 0) {
+    redoStack.push(points);
+    points = undoStack.pop();
+    draw();
+  }
+};
+
+document.getElementById('redoBtn').onclick = () => {
+  if (redoStack.length > 0) {
+    undoStack.push(points);
+    points = redoStack.pop();
+    draw();
+  }
+};
+
+document.getElementById('toggleSnap').onclick = () => {
+  snapEnabled = !snapEnabled;
+};
+
+document.getElementById('toggleOrtho').onclick = () => {
+  orthoEnabled = !orthoEnabled;
+};
+
+draw();
