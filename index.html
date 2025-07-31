@@ -3,17 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Editor CAD Web</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Desenho de Polígonos com Cotas</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+      background-color: #fdfdfd;
+      cursor: crosshair;
+    }
+    .tooltip {
+      position: absolute;
+      padding: 4px 8px;
+      background: black;
+      color: white;
+      font-size: 12px;
+      border-radius: 4px;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    .snap-box {
+      fill: rgba(0, 150, 255, 0.3);
+      stroke: rgba(0, 150, 255, 0.8);
+      stroke-width: 1;
+      visibility: hidden;
+    }
+  </style>
 </head>
 <body>
-  <div id="toolbar">
-    <button onclick="undo()">↶ Desfazer</button>
-    <button onclick="redo()">↷ Refazer</button>
-    <label><input type="checkbox" id="snapToggle" checked> Snap</label>
-    <label><input type="checkbox" id="orthoToggle" checked> Orto</label>
-  </div>
-  <canvas id="canvas"></canvas>
-  <script src="script.js"></script>
+  <canvas id="drawingCanvas"></canvas>
+  <div id="tooltip" class="tooltip"></div>
+
+  <script src="main.js"></script>
 </body>
 </html>
