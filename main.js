@@ -1,117 +1,90 @@
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+let drawing = false;
+let currentLine = [];
+const lines = [];
 
-let lines = [];
-let currentLine = null;
+canvas.addEventListener("mousedown", (e) => {
+  const mouse = getMousePos(e);
+  
+  // Se clicou perto do primeiro ponto, fecha o polígono
+  if (currentLine.length > 2 && isNear(mouse, currentLine[0])) {
+    lines.push([...currentLine, currentLine[0]]); // Fecha com o primeiro ponto
+    currentLine = [];
+    drawing = false;
+  } else {
+    currentLine.push(mouse);
+    drawing = true;
+  }
 
-canvas.addEventListener('mousedown', (e) => {
-    const { x, y } = getMousePos(e);
-    const snappedPoint = getSnappedPoint(x, y);
-
-    if (!currentLine) {
-        currentLine = {
-            points: [snappedPoint],
-            visible: true
-        };
-        lines.push(currentLine);
-    } else {
-        currentLine.points.push(snappedPoint);
-    }
-
-    draw();
+  redraw();
 });
 
-canvas.addEventListener('mousemove', (e) => {
-    const { x, y } = getMousePos(e);
-    const snapped = getSnappedPoint(x, y);
+canvas.addEventListener("mousemove", (e) => {
+  if (!drawing) return;
 
-    canvas.style.cursor = snapped.snapped ? 'pointer' : 'crosshair';
+  redraw();
+  const mouse = getMousePos(e);
+  const last = currentLine[currentLine.length - 1];
+  drawLine(last, mouse, "#888");
 
-    if (currentLine && currentLine.points.length > 0) {
-        draw();
-        const lastPoint = currentLine.points[currentLine.points.length - 1];
-        ctx.beginPath();
-        ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(snapped.x, snapped.y);
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'gray';
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
+  // Cotagem provisória
+  const dist = distance(last, mouse).toFixed(2);
+  ctx.fillStyle = "black";
+  ctx.font = "12px Arial";
+  ctx.fillText(`${dist} m`, (last.x + mouse.x) / 2 + 5, (last.y + mouse.y) / 2 - 5);
 });
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function getMousePos(evt) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: evt.clientX - rect.left,
+    y: evt.clientY - rect.top
+  };
+}
 
-    for (let line of lines) {
-        if (line.points.length < 2) continue;
+function drawLine(p1, p2, color = "black") {
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
 
-        ctx.beginPath();
-        ctx.moveTo(line.points[0].x, line.points[0].y);
-        for (let i = 1; i < line.points.length; i++) {
-            ctx.lineTo(line.points[i].x, line.points[i].y);
-        }
+function drawCircle(p, r = 5, color = "red") {
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
 
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.closePath();
+function isNear(p1, p2, threshold = 10) {
+  return Math.hypot(p1.x - p2.x, p1.y - p2.y) < threshold;
+}
 
-        for (let point of line.points) {
-            drawSnapBox(point.x, point.y);
-        }
+function distance(p1, p2) {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  return Math.sqrt(dx * dx + dy * dy) / 10; // escala de 1:10 para simular metros
+}
 
-        drawDimensions(line.points);
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Linhas desenhadas
+  for (const line of lines) {
+    for (let i = 0; i < line.length - 1; i++) {
+      drawLine(line[i], line[i + 1]);
     }
-}
+  }
 
-function drawDimensions(points) {
-    ctx.font = '14px Arial';
-    ctx.fillStyle = 'red';
+  // Linha atual
+  for (let i = 0; i < currentLine.length - 1; i++) {
+    drawLine(currentLine[i], currentLine[i + 1]);
+  }
 
-    for (let i = 0; i < points.length - 1; i++) {
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-
-        ctx.fillText(`${distance.toFixed(2)}px`, midX + 5, midY - 5);
-    }
-}
-
-function drawSnapBox(x, y) {
-    const size = 8;
-    ctx.fillStyle = 'rgba(0, 0, 255, 0.3)';
-    ctx.fillRect(x - size / 2, y - size / 2, size, size);
-}
-
-function getMousePos(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-    };
-}
-
-function getSnappedPoint(x, y) {
-    const snapDistance = 10;
-
-    for (let line of lines) {
-        for (let point of line.points) {
-            const dx = x - point.x;
-            const dy = y - point.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < snapDistance) {
-                return { x: point.x, y: point.y, snapped: true };
-            }
-        }
-    }
-
-    return { x, y, snapped: false };
+  // Pontos
+  for (const p of currentLine) drawCircle(p);
 }
