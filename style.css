@@ -1,26 +1,30 @@
-body, html {
+html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  height: 100%;
-  background-color: #f5f5f5;
   font-family: sans-serif;
 }
 
-#toolbar {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(255,255,255,0.9);
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0,0,0,0.1);
-  z-index: 10;
+canvas {
+  display: block;
+  background-color: #fdfdfd;
+  cursor: crosshair;
 }
 
-canvas {
-  width: 100vw;
-  height: 100vh;
-  display: block;
-  cursor: crosshair;
+.tooltip {
+  position: absolute;
+  padding: 4px 8px;
+  background: black;
+  color: white;
+  font-size: 12px;
+  border-radius: 4px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.snap-box {
+  fill: rgba(0, 150, 255, 0.3);
+  stroke: rgba(0, 150, 255, 0.8);
+  stroke-width: 1;
+  visibility: hidden;
 }
