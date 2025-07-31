@@ -34,14 +34,15 @@ function drawCota(start, end) {
     top: midY - 10,
     fontSize: 14,
     fill: '#333',
-    selectable: false
+    selectable: false,
+    evented: false
   });
   canvas.add(label);
 }
 
 function createSnapBox(point) {
   const size = 10;
-  const snapBox = new fabric.Rect({
+  return new fabric.Rect({
     left: point.x - size / 2,
     top: point.y - size / 2,
     width: size,
@@ -51,8 +52,6 @@ function createSnapBox(point) {
     evented: false,
     visible: false
   });
-  canvas.add(snapBox);
-  return snapBox;
 }
 
 let snapBoxes = [];
@@ -63,6 +62,7 @@ function updateSnapBoxes() {
   points.forEach(pt => {
     const box = createSnapBox(pt);
     snapBoxes.push(box);
+    canvas.add(box);
   });
 }
 
@@ -84,9 +84,7 @@ canvas.on('mouse:move', function (opt) {
 
     if (snapEnabled) {
       const snap = findSnapPoint(pointer);
-      if (snap) {
-        end = snap;
-      }
+      if (snap) end = snap;
     }
 
     if (orthoEnabled && points.length > 0) {
@@ -113,15 +111,15 @@ canvas.on('mouse:down', function (opt) {
   let point = snap || { x: pointer.x, y: pointer.y };
 
   if (points.length > 0 && point === points[0]) {
+    // Fechar polígono
     if (currentLine) {
       canvas.remove(currentLine);
       currentLine = null;
     }
     drawLine(points[points.length - 1], point);
     drawCota(points[points.length - 1], point);
-    points.push(point);
     updateSnapBoxes();
-    points = [];
+    points = []; // Reset para novo desenho
     return;
   }
 
@@ -168,3 +166,4 @@ document.getElementById('toggleOrthoBtn').onclick = function () {
   orthoEnabled = !orthoEnabled;
   this.textContent = `Orto: ${orthoEnabled ? 'Ativado' : 'Desativado'}`;
 };
+
