@@ -1,157 +1,117 @@
-const canvas = document.getElementById('cadCanvas');
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let drawing = false;
-let points = [];
-let polygons = [];
-let history = [];
-let redoStack = [];
-const snapTolerance = 10;
-const gridUnit = 1; // 1px = 1m
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+let lines = [];
+let currentLine = null;
 
-  // Desenhar polígonos anteriores
-  polygons.forEach(polygon => {
-    ctx.beginPath();
-    ctx.moveTo(polygon[0].x, polygon[0].y);
-    polygon.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(150,150,150,0.3)';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1;
-    ctx.fill();
-    ctx.stroke();
-
-    drawCotations(polygon);
-  });
-
-  // Desenhar linhas atuais
-  if (points.length > 0) {
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Caixa de snap
-    points.forEach(p => {
-      ctx.fillStyle = 'rgba(0, 0, 255, 0.2)';
-      ctx.fillRect(p.x - snapTolerance, p.y - snapTolerance, snapTolerance * 2, snapTolerance * 2);
-    });
-  }
-}
-
-// Snap visual
-function snapToVertex(x, y) {
-  for (let p of points) {
-    if (Math.abs(p.x - x) < snapTolerance && Math.abs(p.y - y) < snapTolerance) {
-      return p;
-    }
-  }
-  return null;
-}
-
-// Cotas
-function drawCotations(pts) {
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % pts.length];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-
-    ctx.fillStyle = 'black';
-    ctx.font = '12px Arial';
-    ctx.fillText((length / gridUnit).toFixed(2) + 'm', mx + 5, my - 5);
-  }
-}
-
-// Início e término do desenho
-function startDrawing() {
-  drawing = true;
-  points = [];
-  draw();
-}
-
-function finishDrawing() {
-  if (points.length > 2) {
-    polygons.push([...points]);
-    saveState();
-  }
-  drawing = false;
-  points = [];
-  draw();
-}
-
-// Undo/Redo
-function saveState() {
-  history.push(polygons.map(p => [...p]));
-  redoStack = [];
-}
-
-function undo() {
-  if (history.length > 0) {
-    redoStack.push(polygons);
-    polygons = history.pop();
-    draw();
-  }
-}
-
-function redo() {
-  if (redoStack.length > 0) {
-    history.push(polygons);
-    polygons = redoStack.pop();
-    draw();
-  }
-}
-
-// Mouse
 canvas.addEventListener('mousedown', (e) => {
-  if (!drawing) return;
+    const { x, y } = getMousePos(e);
+    const snappedPoint = getSnappedPoint(x, y);
 
-  let x = e.offsetX;
-  let y = e.offsetY;
-
-  const snapEnabled = document.getElementById('snapToggle').checked;
-  const orthoEnabled = document.getElementById('orthoToggle').checked;
-
-  // Snap
-  if (snapEnabled) {
-    const snapped = snapToVertex(x, y);
-    if (snapped) {
-      x = snapped.x;
-      y = snapped.y;
-
-      // Fechamento do polígono
-      if (snapped === points[0]) {
-        finishDrawing();
-        return;
-      }
+    if (!currentLine) {
+        currentLine = {
+            points: [snappedPoint],
+            visible: true
+        };
+        lines.push(currentLine);
+    } else {
+        currentLine.points.push(snappedPoint);
     }
-  }
 
-  // Ortogonalidade com ângulos múltiplos de 15°
-  if (orthoEnabled && points.length > 0) {
-    const last = points[points.length - 1];
-    const dx = x - last.x;
-    const dy = y - last.y;
-    const angle = Math.atan2(dy, dx);
-    const snappedAngle = Math.round(angle / (Math.PI / 12)) * (Math.PI / 12); // 15°
-    const r = Math.sqrt(dx * dx + dy * dy);
-    x = last.x + r * Math.cos(snappedAngle);
-    y = last.y + r * Math.sin(snappedAngle);
-  }
-
-  points.push({ x, y });
-  draw();
+    draw();
 });
 
+canvas.addEventListener('mousemove', (e) => {
+    const { x, y } = getMousePos(e);
+    const snapped = getSnappedPoint(x, y);
 
+    canvas.style.cursor = snapped.snapped ? 'pointer' : 'crosshair';
+
+    if (currentLine && currentLine.points.length > 0) {
+        draw();
+        const lastPoint = currentLine.points[currentLine.points.length - 1];
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.x, lastPoint.y);
+        ctx.lineTo(snapped.x, snapped.y);
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'gray';
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+});
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let line of lines) {
+        if (line.points.length < 2) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(line.points[0].x, line.points[0].y);
+        for (let i = 1; i < line.points.length; i++) {
+            ctx.lineTo(line.points[i].x, line.points[i].y);
+        }
+
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+
+        for (let point of line.points) {
+            drawSnapBox(point.x, point.y);
+        }
+
+        drawDimensions(line.points);
+    }
+}
+
+function drawDimensions(points) {
+    ctx.font = '14px Arial';
+    ctx.fillStyle = 'red';
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+
+        ctx.fillText(`${distance.toFixed(2)}px`, midX + 5, midY - 5);
+    }
+}
+
+function drawSnapBox(x, y) {
+    const size = 8;
+    ctx.fillStyle = 'rgba(0, 0, 255, 0.3)';
+    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+}
+
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+function getSnappedPoint(x, y) {
+    const snapDistance = 10;
+
+    for (let line of lines) {
+        for (let point of line.points) {
+            const dx = x - point.x;
+            const dy = y - point.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < snapDistance) {
+                return { x: point.x, y: point.y, snapped: true };
+            }
+        }
+    }
+
+    return { x, y, snapped: false };
+}
