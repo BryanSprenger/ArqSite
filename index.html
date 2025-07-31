@@ -3,19 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Editor de Linhas</title>
+  <title>Editor CAD Web</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-/*
-<div>
-  <button onclick="undoLine()">Desfazer</button>
-  <button onclick="redoLine()">Refazer</button>
-  <label><input type="checkbox" checked onchange="snapEnabled = this.checked"> Snap</label>
-  <label><input type="checkbox" checked onchange="orthoEnabled = this.checked"> Orto</label>
-</div>
-<canvas id="drawing-canvas" style="border: 1px solid black;"></canvas>
-<script src="script.js"></script>
-*/
+  <div id="toolbar">
+    <button onclick="undo()">↶ Desfazer</button>
+    <button onclick="redo()">↷ Refazer</button>
+    <label><input type="checkbox" id="snapToggle" checked> Snap</label>
+    <label><input type="checkbox" id="orthoToggle" checked> Orto</label>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script src="script.js"></script>
 </body>
 </html>
