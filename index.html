@@ -1,222 +1,26 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-  <!-- Define o conjunto de caracteres do documento -->
   <meta charset="UTF-8" />
-
-  <!-- Define o título da aba do navegador -->
-  <title>Desenho CAD-like com Snap e Ortogonalidade</title>
-
-  <!-- Define o estilo CSS para os elementos da página -->
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden; /* impede que a página role */
-    }
-
-    canvas {
-      border: 1px solid #ccc;
-      cursor: crosshair; /* cursor em forma de cruz para simular ferramenta de desenho */
-    }
-
-    .toolbar {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255, 255, 255, 0.9); /* fundo semitransparente */
-      padding: 10px;
-      border-radius: 5px;
-      font-family: sans-serif;
-    }
-
-    .toolbar label {
-      display: block;
-      margin-bottom: 5px;
-    }
-
-    .dimension-label {
-      position: absolute;
-      background: white;
-      padding: 2px 5px;
-      font-size: 12px;
-      border: 1px solid #000;
-    }
-  </style>
+  <title>Mini CAD Web</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-  <!-- Área de ferramentas de desenho (snap e ortogonalidade) -->
-  <div class="toolbar">
+  <div id="toolbar">
+    <button onclick="startDrawing()">Iniciar Linha</button>
+    <button onclick="finishDrawing()">Terminar Linha</button>
+    <button onclick="undo()">Desfazer</button>
+    <button onclick="redo()">Refazer</button>
     <label>
-      <input type="checkbox" id="snapToggle" checked />
-      Ativar Snap
+      <input type="checkbox" id="snapToggle" checked> Snap
     </label>
     <label>
-      <input type="checkbox" id="orthoToggle" />
-      Ativar Ortogonalidade
+      <input type="checkbox" id="orthoToggle" checked> Ortogonalidade
     </label>
   </div>
 
-  <!-- Elemento onde o desenho é feito -->
-  <canvas id="drawingCanvas"></canvas>
+  <canvas id="cadCanvas"></canvas>
 
-  <!-- Código JavaScript que controla o comportamento do desenho -->
-  <script>
-    // Seleciona o canvas e define seu contexto 2D
-    const canvas = document.getElementById("drawingCanvas");
-    const ctx = canvas.getContext("2d");
-
-    // Faz o canvas preencher toda a janela
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // Inicializa variáveis de controle
-    let isDrawing = false;
-    let startX = 0;
-    let startY = 0;
-    let lines = []; // Armazena as linhas desenhadas
-    const snapRadius = 10; // Raio de alcance para o snap
-    const orthoAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180]; // Ângulos permitidos
-
-    // Função para desenhar todas as linhas no canvas
-    function drawLines() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      for (let line of lines) {
-        ctx.beginPath();
-        ctx.moveTo(line.x1, line.y1);
-        ctx.lineTo(line.x2, line.y2);
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Desenha os quadradinhos de snap
-        drawSnapBox(line.x1, line.y1);
-        drawSnapBox(line.x2, line.y2);
-
-        // Mostra medida da linha como cota
-        drawDimension(line);
-      }
-    }
-
-    // Função que desenha o "snap box" visual nos vértices
-    function drawSnapBox(x, y) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-      ctx.fillRect(x - snapRadius, y - snapRadius, snapRadius * 2, snapRadius * 2);
-    }
-
-    // Mostra medida externa à linha (como cota)
-    function drawDimension(line) {
-      const midX = (line.x1 + line.x2) / 2;
-      const midY = (line.y1 + line.y2) / 2;
-      const dx = line.x2 - line.x1;
-      const dy = line.y2 - line.y1;
-      const length = Math.sqrt(dx * dx + dy * dy).toFixed(2);
-
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "#000";
-      ctx.fillText(`${length}px`, midX + 5, midY - 5);
-    }
-
-    // Função que verifica se o mouse está próximo de algum ponto com snap
-    function getSnapPoint(x, y) {
-      for (let line of lines) {
-        for (let point of [[line.x1, line.y1], [line.x2, line.y2]]) {
-          const dx = point[0] - x;
-          const dy = point[1] - y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance <= snapRadius) return { x: point[0], y: point[1] };
-        }
-      }
-      return { x, y }; // Sem snap
-    }
-
-    // Alinha os ângulos com ortogonalidade (0°, 45°, etc.)
-    function applyOrtho(startX, startY, endX, endY) {
-      const angle = Math.atan2(endY - startY, endX - startX);
-      const degrees = (angle * 180) / Math.PI;
-
-      // Encontra o ângulo mais próximo da lista
-      const closest = orthoAngles.reduce((a, b) => {
-        return Math.abs(b - degrees) < Math.abs(a - degrees) ? b : a;
-      });
-
-      const radians = (closest * Math.PI) / 180;
-      const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
-      const newX = startX + length * Math.cos(radians);
-      const newY = startY + length * Math.sin(radians);
-
-      return { x: newX, y: newY };
-    }
-
-    // Evento ao clicar: inicia ou termina uma linha
-    canvas.addEventListener("mousedown", (e) => {
-      if (!isDrawing) {
-        const snap = document.getElementById("snapToggle").checked;
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
-        const point = snap ? getSnapPoint(mouseX, mouseY) : { x: mouseX, y: mouseY };
-        startX = point.x;
-        startY = point.y;
-        isDrawing = true;
-      } else {
-        const snap = document.getElementById("snapToggle").checked;
-        const ortho = document.getElementById("orthoToggle").checked;
-
-        let endX = e.clientX;
-        let endY = e.clientY;
-
-        if (snap) {
-          const snapped = getSnapPoint(endX, endY);
-          endX = snapped.x;
-          endY = snapped.y;
-        }
-
-        if (ortho) {
-          const adjusted = applyOrtho(startX, startY, endX, endY);
-          endX = adjusted.x;
-          endY = adjusted.y;
-        }
-
-        lines.push({ x1: startX, y1: startY, x2: endX, y2: endY });
-        isDrawing = false;
-        drawLines();
-      }
-    });
-
-    // Atualiza a tela ao mover o mouse (desenha a linha temporária)
-    canvas.addEventListener("mousemove", (e) => {
-      if (!isDrawing) return;
-
-      drawLines();
-
-      let mouseX = e.clientX;
-      let mouseY = e.clientY;
-
-      const snap = document.getElementById("snapToggle").checked;
-      const ortho = document.getElementById("orthoToggle").checked;
-
-      if (snap) {
-        const snapped = getSnapPoint(mouseX, mouseY);
-        mouseX = snapped.x;
-        mouseY = snapped.y;
-      }
-
-      if (ortho) {
-        const adjusted = applyOrtho(startX, startY, mouseX, mouseY);
-        mouseX = adjusted.x;
-        mouseY = adjusted.y;
-      }
-
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(mouseX, mouseY);
-      ctx.strokeStyle = "red";
-      ctx.setLineDash([5, 5]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    });
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
-
