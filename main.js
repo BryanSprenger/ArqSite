@@ -1,90 +1,169 @@
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+// Configurações iniciais e variáveis globais
+let canvas = document.getElementById("drawing-canvas");
+let ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
 let drawing = false;
 let currentLine = [];
-const lines = [];
+let lines = [];
+let undoneLines = [];
+let snapEnabled = true;
+let orthoEnabled = true;
+let snapThreshold = 10; // em pixels
+let scale = 1 / 50; // 1 metro = 50 pixels (exemplo)
 
-canvas.addEventListener("mousedown", (e) => {
-  const mouse = getMousePos(e);
-  
-  // Se clicou perto do primeiro ponto, fecha o polígono
-  if (currentLine.length > 2 && isNear(mouse, currentLine[0])) {
-    lines.push([...currentLine, currentLine[0]]); // Fecha com o primeiro ponto
-    currentLine = [];
-    drawing = false;
-  } else {
-    currentLine.push(mouse);
-    drawing = true;
+// Eventos do mouse
+canvas.addEventListener("mousedown", startDrawing);
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("mouseup", stopDrawing);
+
+// Eventos para desfazer/refazer
+window.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key === "z") undoLine();
+  if (e.ctrlKey && e.key === "y") redoLine();
+});
+
+// Função para iniciar o desenho de uma linha
+function startDrawing(e) {
+  drawing = true;
+  currentLine = [];
+  addPoint(e);
+}
+
+// Função para desenhar conforme o mouse move
+function draw(e) {
+  if (!drawing) return;
+  let point = getMousePos(e);
+
+  if (orthoEnabled) {
+    let last = currentLine[currentLine.length - 1];
+    if (last) {
+      let dx = point.x - last.x;
+      let dy = point.y - last.y;
+      let angle = Math.atan2(dy, dx);
+      let snapAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180].map(a => a * Math.PI / 180);
+      let closestAngle = snapAngles.reduce((a, b) => Math.abs(angle - a) < Math.abs(angle - b) ? a : b);
+      let length = Math.sqrt(dx * dx + dy * dy);
+      point.x = last.x + length * Math.cos(closestAngle);
+      point.y = last.y + length * Math.sin(closestAngle);
+    }
   }
 
   redraw();
-});
+  drawTempLine(point);
+}
 
-canvas.addEventListener("mousemove", (e) => {
-  if (!drawing) return;
-
+// Finaliza o traçado
+function stopDrawing(e) {
+  drawing = false;
+  addPoint(e);
+  if (currentLine.length > 1) {
+    lines.push(currentLine);
+    undoneLines = [];
+  }
+  currentLine = [];
   redraw();
-  const mouse = getMousePos(e);
-  const last = currentLine[currentLine.length - 1];
-  drawLine(last, mouse, "#888");
+}
 
-  // Cotagem provisória
-  const dist = distance(last, mouse).toFixed(2);
-  ctx.fillStyle = "black";
-  ctx.font = "12px Arial";
-  ctx.fillText(`${dist} m`, (last.x + mouse.x) / 2 + 5, (last.y + mouse.y) / 2 - 5);
-});
+// Adiciona ponto com snap
+function addPoint(e) {
+  let pos = getMousePos(e);
+  if (snapEnabled) {
+    for (let line of lines) {
+      for (let pt of line) {
+        if (distance(pt, pos) < snapThreshold) {
+          pos = pt;
+        }
+      }
+    }
+  }
+  currentLine.push(pos);
+}
 
+// Redesenha todas as linhas
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "black";
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+
+  for (let line of lines) {
+    drawLine(line);
+  }
+
+  drawSnapBoxes();
+}
+
+// Desenha uma linha
+function drawLine(line) {
+  ctx.beginPath();
+  ctx.moveTo(line[0].x, line[0].y);
+  for (let i = 1; i < line.length; i++) {
+    ctx.lineTo(line[i].x, line[i].y);
+    drawDimension(line[i - 1], line[i]);
+  }
+  ctx.stroke();
+}
+
+// Desenha linha temporária
+function drawTempLine(point) {
+  let last = currentLine[currentLine.length - 1];
+  if (!last) return;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(last.x, last.y);
+  ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  drawDimension(last, point);
+}
+
+// Pega posição do mouse
 function getMousePos(evt) {
-  const rect = canvas.getBoundingClientRect();
+  let rect = canvas.getBoundingClientRect();
   return {
     x: evt.clientX - rect.left,
     y: evt.clientY - rect.top
   };
 }
 
-function drawLine(p1, p2, color = "black") {
-  ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
+// Distância entre dois pontos
+function distance(a, b) {
+  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-function drawCircle(p, r = 5, color = "red") {
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-function isNear(p1, p2, threshold = 10) {
-  return Math.hypot(p1.x - p2.x, p1.y - p2.y) < threshold;
-}
-
-function distance(p1, p2) {
-  const dx = p1.x - p2.x;
-  const dy = p1.y - p2.y;
-  return Math.sqrt(dx * dx + dy * dy) / 10; // escala de 1:10 para simular metros
-}
-
-function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Linhas desenhadas
-  for (const line of lines) {
-    for (let i = 0; i < line.length - 1; i++) {
-      drawLine(line[i], line[i + 1]);
+// Desenha as caixas de snap
+function drawSnapBoxes() {
+  ctx.fillStyle = "rgba(0, 0, 255, 0.2)";
+  for (let line of lines) {
+    for (let pt of line) {
+      ctx.fillRect(pt.x - snapThreshold / 2, pt.y - snapThreshold / 2, snapThreshold, snapThreshold);
     }
   }
+}
 
-  // Linha atual
-  for (let i = 0; i < currentLine.length - 1; i++) {
-    drawLine(currentLine[i], currentLine[i + 1]);
+// Desenha a cota (medida)
+function drawDimension(p1, p2) {
+  let midX = (p1.x + p2.x) / 2;
+  let midY = (p1.y + p2.y) / 2;
+  let dist = distance(p1, p2) * scale;
+  ctx.font = "12px Arial";
+  ctx.fillStyle = "black";
+  ctx.fillText(dist.toFixed(2) + "m", midX + 5, midY - 5);
+}
+
+// Desfazer/Refazer
+function undoLine() {
+  if (lines.length > 0) {
+    undoneLines.push(lines.pop());
+    redraw();
   }
+}
 
-  // Pontos
-  for (const p of currentLine) drawCircle(p);
+function redoLine() {
+  if (undoneLines.length > 0) {
+    lines.push(undoneLines.pop());
+    redraw();
+  }
 }
