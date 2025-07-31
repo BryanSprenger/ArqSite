@@ -1,157 +1,170 @@
-const canvas = document.getElementById("drawingCanvas");
-const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const canvas = new fabric.Canvas('drawingCanvas', {
+  selection: false,
+  backgroundColor: '#fdfdfd'
+});
 
-let drawing = false;
-let currentPolygon = [];
-let polygons = [];
+canvas.setHeight(window.innerHeight);
+canvas.setWidth(window.innerWidth);
+
+let points = [];
+let lines = [];
+let currentLine = null;
+let snapEnabled = true;
+let orthoEnabled = true;
 let undoStack = [];
 let redoStack = [];
 
-const tooltip = document.getElementById("tooltip");
-const snapThreshold = 10;
-const orthoThreshold = 10;
-
-function drawCircle(x, y, radius = 4, color = "#0077ff") {
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, 2 * Math.PI);
-  ctx.fillStyle = color;
-  ctx.fill();
+function drawLine(start, end) {
+  const line = new fabric.Line([start.x, start.y, end.x, end.y], {
+    stroke: 'black',
+    strokeWidth: 2,
+    selectable: false,
+    evented: false
+  });
+  canvas.add(line);
+  lines.push(line);
 }
 
-function drawLine(p1, p2, color = "#000") {
-  ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
+function drawCota(start, end) {
+  const midX = (start.x + end.x) / 2;
+  const midY = (start.y + end.y) / 2;
+  const distance = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
+  const label = new fabric.Text((distance / 100).toFixed(2) + ' m', {
+    left: midX + 10,
+    top: midY - 10,
+    fontSize: 14,
+    fill: '#333',
+    selectable: false
+  });
+  canvas.add(label);
 }
 
-function drawText(text, x, y) {
-  ctx.font = "12px sans-serif";
-  ctx.fillStyle = "black";
-  ctx.fillText(text, x + 5, y - 5);
+function createSnapBox(point) {
+  const size = 10;
+  const snapBox = new fabric.Rect({
+    left: point.x - size / 2,
+    top: point.y - size / 2,
+    width: size,
+    height: size,
+    fill: 'rgba(0,0,255,0.2)',
+    selectable: false,
+    evented: false,
+    visible: false
+  });
+  canvas.add(snapBox);
+  return snapBox;
 }
 
-function distance(p1, p2) {
-  return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+let snapBoxes = [];
+
+function updateSnapBoxes() {
+  snapBoxes.forEach(box => canvas.remove(box));
+  snapBoxes = [];
+  points.forEach(pt => {
+    const box = createSnapBox(pt);
+    snapBoxes.push(box);
+  });
 }
 
-function snapToVertex(point, vertices) {
-  for (let vertex of vertices) {
-    if (distance(point, vertex) < snapThreshold) {
-      return vertex;
+function findSnapPoint(pointer) {
+  for (let pt of points) {
+    const dx = pt.x - pointer.x;
+    const dy = pt.y - pointer.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 10) {
+      return pt;
     }
   }
   return null;
 }
 
-function applyOrthoConstraint(point, lastPoint) {
-  const dx = Math.abs(point.x - lastPoint.x);
-  const dy = Math.abs(point.y - lastPoint.y);
-  if (dx < orthoThreshold) return { x: lastPoint.x, y: point.y };
-  if (dy < orthoThreshold) return { x: point.x, y: lastPoint.y };
-  return point;
-}
+canvas.on('mouse:move', function (opt) {
+  const pointer = canvas.getPointer(opt.e);
+  if (currentLine) {
+    let end = { x: pointer.x, y: pointer.y };
 
-function drawAll() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let poly of polygons) {
-    for (let i = 0; i < poly.length; i++) {
-      const p1 = poly[i];
-      const p2 = poly[(i + 1) % poly.length];
-      drawLine(p1, p2);
-      drawCircle(p1.x, p1.y);
-      drawDimension(p1, p2);
+    if (snapEnabled) {
+      const snap = findSnapPoint(pointer);
+      if (snap) {
+        end = snap;
+      }
     }
-  }
-  for (let i = 0; i < currentPolygon.length - 1; i++) {
-    drawLine(currentPolygon[i], currentPolygon[i + 1], "#0077ff");
-    drawCircle(currentPolygon[i].x, currentPolygon[i].y);
-    drawDimension(currentPolygon[i], currentPolygon[i + 1]);
-  }
-  if (currentPolygon.length > 0) {
-    drawCircle(currentPolygon[currentPolygon.length - 1].x, currentPolygon[currentPolygon.length - 1].y);
-  }
-}
 
-function drawDimension(p1, p2) {
-  const midX = (p1.x + p2.x) / 2;
-  const midY = (p1.y + p2.y) / 2;
-  const meters = (distance(p1, p2) / 100).toFixed(2) + " m";
-  drawText(meters, midX, midY);
-}
-
-canvas.addEventListener("mousemove", (e) => {
-  const rect = canvas.getBoundingClientRect();
-  let mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-
-  if (currentPolygon.length > 0) {
-    const lastPoint = currentPolygon[currentPolygon.length - 1];
-    let adjusted = applyOrthoConstraint(mouse, lastPoint);
-    let snapped = snapToVertex(adjusted, currentPolygon);
-    if (snapped) adjusted = snapped;
-
-    drawAll();
-    drawLine(lastPoint, adjusted, "#aaa");
-    drawDimension(lastPoint, adjusted);
-    drawCircle(adjusted.x, adjusted.y, 5, "red");
-
-    tooltip.style.left = e.pageX + 10 + "px";
-    tooltip.style.top = e.pageY + 10 + "px";
-    tooltip.innerHTML = (distance(lastPoint, adjusted) / 100).toFixed(2) + " m";
-    tooltip.style.visibility = "visible";
-  } else {
-    tooltip.style.visibility = "hidden";
-  }
-});
-
-canvas.addEventListener("click", (e) => {
-  const rect = canvas.getBoundingClientRect();
-  let clickPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-
-  if (currentPolygon.length > 0) {
-    const lastPoint = currentPolygon[currentPolygon.length - 1];
-    let adjusted = applyOrthoConstraint(clickPoint, lastPoint);
-    let snapped = snapToVertex(adjusted, currentPolygon);
-
-    if (snapped && snapped === currentPolygon[0] && currentPolygon.length > 2) {
-      currentPolygon.push(snapped);
-      polygons.push([...currentPolygon]);
-      undoStack.push({ type: "add", polygon: [...currentPolygon] });
-      currentPolygon = [];
-    } else {
-      currentPolygon.push(adjusted);
+    if (orthoEnabled && points.length > 0) {
+      const start = points[points.length - 1];
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const angle = Math.atan2(dy, dx);
+      const degrees = (angle * 180) / Math.PI;
+      const snappedAngle = Math.round(degrees / 15) * 15;
+      const rad = (snappedAngle * Math.PI) / 180;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      end.x = start.x + Math.cos(rad) * distance;
+      end.y = start.y + Math.sin(rad) * distance;
     }
-  } else {
-    currentPolygon.push(clickPoint);
-  }
 
-  drawAll();
+    currentLine.set({ x2: end.x, y2: end.y });
+    canvas.renderAll();
+  }
 });
 
-window.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && e.key === "z") undo();
-  if (e.ctrlKey && e.key === "y") redo();
+canvas.on('mouse:down', function (opt) {
+  const pointer = canvas.getPointer(opt.e);
+  let snap = snapEnabled ? findSnapPoint(pointer) : null;
+  let point = snap || { x: pointer.x, y: pointer.y };
+
+  if (points.length > 0 && point === points[0]) {
+    if (currentLine) {
+      canvas.remove(currentLine);
+      currentLine = null;
+    }
+    drawLine(points[points.length - 1], point);
+    drawCota(points[points.length - 1], point);
+    points.push(point);
+    updateSnapBoxes();
+    points = [];
+    return;
+  }
+
+  if (points.length > 0) {
+    drawLine(points[points.length - 1], point);
+    drawCota(points[points.length - 1], point);
+  }
+
+  points.push(point);
+  updateSnapBoxes();
+
+  currentLine = new fabric.Line([point.x, point.y, point.x, point.y], {
+    stroke: 'black',
+    strokeWidth: 2,
+    selectable: false,
+    evented: false
+  });
+  canvas.add(currentLine);
 });
 
-function undo() {
-  if (undoStack.length > 0) {
-    const action = undoStack.pop();
-    redoStack.push(action);
-    if (action.type === "add") polygons.pop();
-    drawAll();
+// Botões
+document.getElementById('undoBtn').onclick = () => {
+  const last = lines.pop();
+  if (last) {
+    canvas.remove(last);
+    undoStack.push(last);
   }
-}
+};
 
-function redo() {
-  if (redoStack.length > 0) {
-    const action = redoStack.pop();
-    if (action.type === "add") polygons.push(action.polygon);
-    undoStack.push(action);
-    drawAll();
+document.getElementById('redoBtn').onclick = () => {
+  const last = undoStack.pop();
+  if (last) {
+    canvas.add(last);
+    lines.push(last);
   }
-}
+};
 
+document.getElementById('toggleSnapBtn').onclick = function () {
+  snapEnabled = !snapEnabled;
+  this.textContent = `Snap: ${snapEnabled ? 'Ativado' : 'Desativado'}`;
+};
+
+document.getElementById('toggleOrthoBtn').onclick = function () {
+  orthoEnabled = !orthoEnabled;
+  this.textContent = `Orto: ${orthoEnabled ? 'Ativado' : 'Desativado'}`;
+};
