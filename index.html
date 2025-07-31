@@ -1,64 +1,19 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Editor de Polígonos com Snap e Orto</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-    }
-
-    #toolbar {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      z-index: 100;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-    }
-
-    #toolbar button {
-      margin: 5px;
-      padding: 6px 12px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    canvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    .snap-box {
-      width: 8px;
-      height: 8px;
-      border: 2px solid red;
-      border-radius: 50%;
-      position: absolute;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      display: none;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <title>Editor de Linhas com Snap</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="toolbar">
-    <button id="toggleSnap">Snap: Ativado</button>
-    <button id="toggleOrtho">Orto: Desativado</button>
-    <button id="reset">Resetar</button>
+  <div class="toolbar">
+    <button id="undoBtn">↩️ Desfazer</button>
+    <button id="redoBtn">↪️ Refazer</button>
+    <button id="toggleSnapBtn">Snap: Ativado</button>
+    <button id="toggleOrthoBtn">Orto: Ativado</button>
   </div>
-
-  <canvas id="c"></canvas>
-
+  <canvas id="drawingCanvas"></canvas>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-  <script src="main.js" defer></script>
+  <script src="main.js"></script>
 </body>
 </html>
