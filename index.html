@@ -1,206 +1,222 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
+  <!-- Define o conjunto de caracteres do documento -->
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Protótipo CAD Web</title>
+
+  <!-- Define o título da aba do navegador -->
+  <title>Desenho CAD-like com Snap e Ortogonalidade</title>
+
+  <!-- Define o estilo CSS para os elementos da página -->
   <style>
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
-      overflow: hidden;
-      user-select: none;
+      overflow: hidden; /* impede que a página role */
     }
+
     canvas {
-      display: block;
-      background: #f0f0f0;
-      cursor: crosshair;
+      border: 1px solid #ccc;
+      cursor: crosshair; /* cursor em forma de cruz para simular ferramenta de desenho */
     }
-    #toolbar {
+
+    .toolbar {
       position: absolute;
       top: 10px;
       left: 10px;
-      background: white;
+      background: rgba(255, 255, 255, 0.9); /* fundo semitransparente */
       padding: 10px;
-      border-radius: 6px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      border-radius: 5px;
       font-family: sans-serif;
-      z-index: 10;
     }
-    #toolbar label {
-      margin-right: 10px;
+
+    .toolbar label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .dimension-label {
+      position: absolute;
+      background: white;
+      padding: 2px 5px;
+      font-size: 12px;
+      border: 1px solid #000;
     }
   </style>
 </head>
+
 <body>
-  <div id="toolbar">
-    <label><input type="checkbox" id="snapToggle" checked> Snap</label>
-    <label><input type="checkbox" id="orthoToggle"> Ortho</label>
-    <button onclick="closePolygon()">Fechar Polígono</button>
+  <!-- Área de ferramentas de desenho (snap e ortogonalidade) -->
+  <div class="toolbar">
+    <label>
+      <input type="checkbox" id="snapToggle" checked />
+      Ativar Snap
+    </label>
+    <label>
+      <input type="checkbox" id="orthoToggle" />
+      Ativar Ortogonalidade
+    </label>
   </div>
-  <canvas id="cadCanvas"></canvas>
+
+  <!-- Elemento onde o desenho é feito -->
+  <canvas id="drawingCanvas"></canvas>
+
+  <!-- Código JavaScript que controla o comportamento do desenho -->
   <script>
-    const canvas = document.getElementById("cadCanvas");
+    // Seleciona o canvas e define seu contexto 2D
+    const canvas = document.getElementById("drawingCanvas");
     const ctx = canvas.getContext("2d");
+
+    // Faz o canvas preencher toda a janela
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    let points = [];
-    let tempPoint = null;
-    let panX = 0, panY = 0;
-    let mouseDown = false;
-    let lastX, lastY;
-    let scale = 1;
-    const SNAP_RADIUS = 10;
-    const COTA_OFFSET = 20;
+    // Inicializa variáveis de controle
+    let isDrawing = false;
+    let startX = 0;
+    let startY = 0;
+    let lines = []; // Armazena as linhas desenhadas
+    const snapRadius = 10; // Raio de alcance para o snap
+    const orthoAngles = [0, 30, 45, 60, 90, 120, 135, 150, 180]; // Ângulos permitidos
 
-    function drawLine(p1, p2, dashed = false) {
-      if (dashed) {
-        ctx.setLineDash([5, 5]);
-      } else {
-        ctx.setLineDash([]);
-      }
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
-    }
-
-    function drawCircle(p, r, color = 'red') {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-
-    function drawSquare(p, size, color = 'blue') {
-      ctx.beginPath();
-      ctx.rect(p.x - size/2, p.y - size/2, size, size);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-
-    function getMousePos(evt) {
-      return {
-        x: (evt.offsetX - panX) / scale,
-        y: (evt.offsetY - panY) / scale
-      };
-    }
-
-    function snapPoint(p) {
-      const snapEnabled = document.getElementById("snapToggle").checked;
-      if (!snapEnabled) return p;
-      for (const pt of points) {
-        const dx = pt.x - p.x;
-        const dy = pt.y - p.y;
-        if (Math.sqrt(dx*dx + dy*dy) < SNAP_RADIUS / scale) {
-          return pt;
-        }
-      }
-      return p;
-    }
-
-    function orthoAngle(base, next) {
-      const dx = next.x - base.x;
-      const dy = next.y - base.y;
-      const angle = Math.atan2(dy, dx);
-      const step = Math.PI / 12; // 15 deg
-      const snappedAngle = Math.round(angle / step) * step;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      return {
-        x: base.x + dist * Math.cos(snappedAngle),
-        y: base.y + dist * Math.sin(snappedAngle)
-      };
-    }
-
-    function drawDimension(p1, p2) {
-      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const angle = Math.atan2(dy, dx);
-      const offsetX = COTA_OFFSET * Math.sin(angle);
-      const offsetY = -COTA_OFFSET * Math.cos(angle);
-      const start = { x: p1.x + offsetX, y: p1.y + offsetY };
-      const end = { x: p2.x + offsetX, y: p2.y + offsetY };
-
-      drawLine(start, end, true);
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "black";
-      const dist = Math.hypot(dx, dy).toFixed(2);
-      ctx.fillText(dist + " m", mid.x + offsetX + 5, mid.y + offsetY - 5);
-    }
-
-    function render() {
+    // Função para desenhar todas as linhas no canvas
+    function drawLines() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.translate(panX, panY);
-      ctx.scale(scale, scale);
-      ctx.lineWidth = 2 / scale;
-      ctx.strokeStyle = "black";
-      ctx.fillStyle = "rgba(150,150,150,0.2)";
 
-      for (let i = 1; i < points.length; i++) {
-        drawLine(points[i - 1], points[i]);
-        drawDimension(points[i - 1], points[i]);
-      }
-      if (tempPoint) {
-        const last = points[points.length - 1];
-        if (last) drawLine(last, tempPoint);
-      }
+      for (let line of lines) {
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-      for (const pt of points) {
-        drawSquare(pt, SNAP_RADIUS, "rgba(0,0,255,0.3)");
-        drawCircle(pt, 3);
-      }
+        // Desenha os quadradinhos de snap
+        drawSnapBox(line.x1, line.y1);
+        drawSnapBox(line.x2, line.y2);
 
-      ctx.restore();
-      requestAnimationFrame(render);
+        // Mostra medida da linha como cota
+        drawDimension(line);
+      }
     }
 
-    canvas.addEventListener("mousedown", (e) => {
-      if (e.button === 1) {
-        mouseDown = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        return;
-      }
-      const pos = snapPoint(getMousePos(e));
-      points.push(pos);
-    });
+    // Função que desenha o "snap box" visual nos vértices
+    function drawSnapBox(x, y) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(x - snapRadius, y - snapRadius, snapRadius * 2, snapRadius * 2);
+    }
 
-    canvas.addEventListener("mousemove", (e) => {
-      if (mouseDown) {
-        panX += e.clientX - lastX;
-        panY += e.clientY - lastY;
-        lastX = e.clientX;
-        lastY = e.clientY;
-      } else {
-        let pos = getMousePos(e);
-        const ortho = document.getElementById("orthoToggle").checked;
-        if (points.length > 0 && ortho) {
-          pos = orthoAngle(points[points.length - 1], pos);
+    // Mostra medida externa à linha (como cota)
+    function drawDimension(line) {
+      const midX = (line.x1 + line.x2) / 2;
+      const midY = (line.y1 + line.y2) / 2;
+      const dx = line.x2 - line.x1;
+      const dy = line.y2 - line.y1;
+      const length = Math.sqrt(dx * dx + dy * dy).toFixed(2);
+
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "#000";
+      ctx.fillText(`${length}px`, midX + 5, midY - 5);
+    }
+
+    // Função que verifica se o mouse está próximo de algum ponto com snap
+    function getSnapPoint(x, y) {
+      for (let line of lines) {
+        for (let point of [[line.x1, line.y1], [line.x2, line.y2]]) {
+          const dx = point[0] - x;
+          const dy = point[1] - y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance <= snapRadius) return { x: point[0], y: point[1] };
         }
-        tempPoint = snapPoint(pos);
       }
-    });
-
-    canvas.addEventListener("mouseup", (e) => {
-      if (e.button === 1) mouseDown = false;
-    });
-
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-      scale *= zoom;
-    });
-
-    function closePolygon() {
-      if (points.length > 2) {
-        points.push(points[0]);
-      }
+      return { x, y }; // Sem snap
     }
 
-    render();
+    // Alinha os ângulos com ortogonalidade (0°, 45°, etc.)
+    function applyOrtho(startX, startY, endX, endY) {
+      const angle = Math.atan2(endY - startY, endX - startX);
+      const degrees = (angle * 180) / Math.PI;
+
+      // Encontra o ângulo mais próximo da lista
+      const closest = orthoAngles.reduce((a, b) => {
+        return Math.abs(b - degrees) < Math.abs(a - degrees) ? b : a;
+      });
+
+      const radians = (closest * Math.PI) / 180;
+      const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+      const newX = startX + length * Math.cos(radians);
+      const newY = startY + length * Math.sin(radians);
+
+      return { x: newX, y: newY };
+    }
+
+    // Evento ao clicar: inicia ou termina uma linha
+    canvas.addEventListener("mousedown", (e) => {
+      if (!isDrawing) {
+        const snap = document.getElementById("snapToggle").checked;
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        const point = snap ? getSnapPoint(mouseX, mouseY) : { x: mouseX, y: mouseY };
+        startX = point.x;
+        startY = point.y;
+        isDrawing = true;
+      } else {
+        const snap = document.getElementById("snapToggle").checked;
+        const ortho = document.getElementById("orthoToggle").checked;
+
+        let endX = e.clientX;
+        let endY = e.clientY;
+
+        if (snap) {
+          const snapped = getSnapPoint(endX, endY);
+          endX = snapped.x;
+          endY = snapped.y;
+        }
+
+        if (ortho) {
+          const adjusted = applyOrtho(startX, startY, endX, endY);
+          endX = adjusted.x;
+          endY = adjusted.y;
+        }
+
+        lines.push({ x1: startX, y1: startY, x2: endX, y2: endY });
+        isDrawing = false;
+        drawLines();
+      }
+    });
+
+    // Atualiza a tela ao mover o mouse (desenha a linha temporária)
+    canvas.addEventListener("mousemove", (e) => {
+      if (!isDrawing) return;
+
+      drawLines();
+
+      let mouseX = e.clientX;
+      let mouseY = e.clientY;
+
+      const snap = document.getElementById("snapToggle").checked;
+      const ortho = document.getElementById("orthoToggle").checked;
+
+      if (snap) {
+        const snapped = getSnapPoint(mouseX, mouseY);
+        mouseX = snapped.x;
+        mouseY = snapped.y;
+      }
+
+      if (ortho) {
+        const adjusted = applyOrtho(startX, startY, mouseX, mouseY);
+        mouseX = adjusted.x;
+        mouseY = adjusted.y;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(mouseX, mouseY);
+      ctx.strokeStyle = "red";
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
   </script>
 </body>
 </html>
+
