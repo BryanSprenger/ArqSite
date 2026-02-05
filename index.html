@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UrbanMap Pro v14 - CAD Urbanístico</title>
+    <title>UrbanMap Pro v15 - NBR Edition</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -12,6 +13,8 @@
         <div class="loading-spinner" aria-hidden="true"></div>
         <h2>UrbanMap <span class="logo-light">Pro</span></h2>
         <p>Carregando módulos...</p>
+        <h2>UrbanMap <span style="font-weight:300">Pro</span></h2>
+        <p id="loadingText">Carregando módulos...</p>
     </div>
 
     <div class="app-container">
@@ -58,10 +61,38 @@
                         <div class="info-row">
                             <span>Zoneamento:</span>
                             <select id="loteZoning" class="mini-select" aria-label="Zoneamento do lote">
+                    <button class="btn-icon mobile-only" id="btnToggleNav" type="button" aria-label="Alternar painel móvel"><i class="fas fa-bars"></i></button>
+                    <button class="btn-primary" id="btnExportJSON" type="button"><i class="fas fa-save"></i> Salvar</button>
+                    <button class="btn-icon" id="btnHelp" type="button" title="Ajuda"><i class="fas fa-question"></i></button>
+                </div>
+            </header>
+
+            <aside class="panel-left floating-panel" id="leftPanel">
+                <div class="panel-section highlight-section">
+                    <div class="header-split">
+                        <h4><i class="fas fa-map-marker-alt"></i> Definição do Lote</h4>
+                    </div>
+                    <div class="lote-control">
+                        <button class="btn-secondary full-width" id="btnDrawLote" type="button">
+                            <i class="fas fa-draw-polygon"></i> Desenhar Perímetro
+                        </button>
+                    </div>
+                    <div id="loteInfoBox" class="info-box" style="display:none;">
+                        <div class="info-row">
+                            <span>Área Total:</span> <strong id="loteAreaDisplay">0 m²</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Zon:</span>
+                            <select id="loteZoning" class="mini-select">
                                 <option value="ZR-3">ZR-3</option>
                                 <option value="ZR-4">ZR-4</option>
                                 <option value="ECO-1">Estrutural</option>
                             </select>
+                            <button class="btn-icon" id="btnEditLote" title="Editar Vértices"><i class="fas fa-edit"></i></button>
+                        </div>
+                        <div id="vertexZControl" class="info-row" style="display:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:6px; margin-top:6px;">
+                            <span>Cota (Z) Vértice:</span>
+                            <input type="number" id="inputVertexZ" class="mini-input" step="0.1" value="0.0">
                         </div>
                     </div>
                 </div>
@@ -77,6 +108,14 @@
                         <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)"><i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span></button>
                         <button class="tool-btn" data-tool="edit-building" type="button" title="Editar polígono"><i class="fas fa-bezier-curve" aria-hidden="true"></i> <span>Editar</span></button>
                         <button class="tool-btn" data-tool="cut" type="button" title="Corte esquemático"><i class="fas fa-cut" aria-hidden="true"></i> <span>Corte</span></button>
+                    <h4><i class="fas fa-pen-fancy"></i> Projetar</h4>
+                    <div class="toolbar-grid">
+                        <button class="tool-btn active" data-tool="select" title="Selecionar (V)"><i class="fas fa-mouse-pointer"></i><span>Select</span></button>
+                        <button class="tool-btn" data-tool="pan" title="Mover (Espaço ou Scroll)"><i class="fas fa-hand-paper"></i><span>Pan</span></button>
+                        <button class="tool-btn" data-tool="rectangle" title="Retângulo (R)"><i class="fas fa-vector-square"></i><span>Ret.</span></button>
+                        <button class="tool-btn" data-tool="polygon" title="Polígono (P)"><i class="fas fa-draw-polygon"></i><span>Polig.</span></button>
+                        <button class="tool-btn" data-tool="edit-building" title="Editar Vértices"><i class="fas fa-bezier-curve"></i><span>Editar</span></button>
+                        <button class="tool-btn" data-tool="cut-line" title="Traçar Linha de Corte"><i class="fas fa-cut"></i><span>Corte</span></button>
                     </div>
                 </div>
 
@@ -145,6 +184,41 @@
                 <button type="button" class="mobile-nav-btn active" data-panel-target="left">Ferramentas</button>
                 <button type="button" class="mobile-nav-btn" data-panel-target="right">Índices</button>
             </nav>
+                        <h4><i class="fas fa-layer-group"></i> Pavimentos</h4>
+                        <div class="inline-actions">
+                            <button class="btn-icon" id="btnRemoveFloor" title="Remover"><i class="fas fa-trash"></i></button>
+                            <button class="btn-icon" id="btnAddFloor" title="Adicionar"><i class="fas fa-plus"></i></button>
+                        </div>
+                    </div>
+                    <div id="floorsList" class="list-container"></div>
+                </div>
+            </aside>
+
+            <aside class="panel-right floating-panel" id="rightPanel">
+                <div class="panel-header-simple"><h3><i class="fas fa-chart-pie"></i> Índices Urbanísticos</h3></div>
+                <div class="scrollable-content">
+                    <div class="metric-card">
+                        <div class="metric-header"><span>TO (Ocupação)</span> <span class="badge-limit">Max: <span id="limitTO">50</span>%</span></div>
+                        <div class="metric-main"><span class="big-number" id="valCurrentTO">0%</span></div>
+                        <div class="progress-bar"><div class="progress-fill" id="barTO" style="width: 0%"></div></div>
+                        <div class="status-text" id="statusTO">Dentro do limite</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header"><span>CA (Aproveitamento)</span> <span class="badge-limit">Max: <span id="limitCA">1.0</span></span></div>
+                        <div class="metric-main"><span class="big-number" id="valCurrentCA">0.00</span></div>
+                        <div class="progress-bar"><div class="progress-fill" id="barCA" style="width: 0%"></div></div>
+                        <div class="status-text" id="statusCA">Dentro do limite</div>
+                    </div>
+                    <div class="divider"></div>
+                    <h4 class="section-title">Edificações (Nível Atual)</h4>
+                    <div id="buildingsList" class="list-container"></div>
+                </div>
+            </aside>
+
+            <footer class="bottom-bar floating-panel">
+                <div class="coords" id="mouseCoords">X: 0.00 m, Y: 0.00 m</div>
+                <div id="toolHint">Selecione uma ferramenta</div>
+            </footer>
         </div>
     </div>
 
@@ -159,6 +233,28 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+                <h3>Corte Esquemático (NBR)</h3>
+                <button id="btnCloseCut" class="btn-icon" type="button"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+            <div class="cut-container">
+                <canvas id="cutCanvas" width="800" height="400"></canvas>
+            </div>
+            <div style="margin-top:10px; font-size:12px; color:#9ca3af;">
+                * Perfil do terreno interpolado. Edificações projetadas.
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
+    <script>
+        // Verificação de segurança se o Fabric carregou
+        window.addEventListener('load', function() {
+            if (typeof fabric === 'undefined') {
+                document.getElementById('loadingText').innerText = "Erro: Fabric.js não carregou. Verifique sua conexão.";
+                document.getElementById('loadingText').style.color = "#ef4444";
+            }
+        });
+    </script>
     <script src="main.js"></script>
 </body>
 </html>
