@@ -28,6 +28,8 @@ class UrbanMapApp {
         this.pxPerMeter = 10;   // Escala visual
         this.isDrawing = false;
         this.isDragging = false;
+        this.panBySpace = false;
+        this.lastToolBeforePan = 'select';
 
         this.init();
     }
@@ -62,12 +64,36 @@ class UrbanMapApp {
     }
 
     handleKey(e, isDown) {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        const isInputContext = ['input', 'textarea', 'select'].includes(tag);
+
+        if (!isInputContext && isDown) {
+            const key = e.key.toLowerCase();
+            if (key === 'v') this.setTool('select');
+            if (key === 'r') this.setTool('rectangle');
+            if (key === 'p') this.setTool('polygon');
+        }
+
         if (e.key === 'Shift') {
             this.state.isShiftPressed = isDown;
             document.getElementById('orthoStatus').innerHTML = isDown ? 
                 '<i class="fas fa-ruler-combined"></i> Orto: ON' : 
                 '<i class="fas fa-ruler-combined"></i> Orto (Shift): OFF';
         }
+
+        if (!isInputContext && e.code === 'Space') {
+            e.preventDefault();
+            if (isDown && !this.panBySpace) {
+                this.panBySpace = true;
+                this.lastToolBeforePan = this.state.tool;
+                this.setTool('pan');
+            }
+            if (!isDown && this.panBySpace) {
+                this.panBySpace = false;
+                this.setTool(this.lastToolBeforePan || 'select');
+            }
+        }
+
         if (isDown && e.key === 'Delete') this.deleteSelected();
         if (isDown && e.key === 'Escape') this.setTool('select');
     }
@@ -208,7 +234,7 @@ class UrbanMapApp {
 
                 if (this.state.tool === 'rectangle' && this.activeShape) {
                     this.updateRectanglePreview(target);
-                } else if (this.state.tool.includes('polygon') && this.activeLine) {
+                } else if ((this.state.tool === 'polygon' || this.state.tool === 'draw-lote') && this.activeLine) {
                     this.activeLine.set({ x2: target.x, y2: target.y });
                     this.canvas.requestRenderAll();
                 }
@@ -626,6 +652,26 @@ class UrbanMapApp {
 
         const btnExport = document.getElementById('btnExportJSON');
         if (btnExport) btnExport.addEventListener('click', () => this.exportJSON());
+
+        const btnToggleNav = document.getElementById('btnToggleNav');
+        if (btnToggleNav) {
+            btnToggleNav.addEventListener('click', () => {
+                const rightActive = document.body.classList.contains('mobile-panel-right');
+                this.setMobilePanel(rightActive ? 'left' : 'right');
+            });
+        }
+
+        document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setMobilePanel(btn.dataset.panelTarget));
+        });
+    }
+
+    setMobilePanel(target) {
+        const showRight = target === 'right';
+        document.body.classList.toggle('mobile-panel-right', showRight);
+        document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.panelTarget === (showRight ? 'right' : 'left'));
+        });
     }
 
     addFloor(name) {

@@ -20,7 +20,6 @@
         </div>
 
         <div class="ui-layer">
-            
             <header class="top-bar floating-panel" role="banner">
                 <div class="brand">
                     <i class="fas fa-city logo-icon" aria-hidden="true"></i>
@@ -29,7 +28,7 @@
                         <span class="project-name">Residencial Modelo</span>
                     </div>
                 </div>
-                
+
                 <div class="top-stats" role="status" aria-live="polite">
                     <span class="stat-tag"><i class="fas fa-layer-group" aria-hidden="true"></i> <strong id="headerFloorName">Térreo</strong></span>
                     <span class="stat-tag"><i class="fas fa-search" aria-hidden="true"></i> <strong id="headerZoom">100%</strong></span>
@@ -38,21 +37,23 @@
                 </div>
 
                 <div class="user-actions">
-                    <button class="btn-primary" id="btnExportJSON" title="Salvar projeto (JSON)"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
-                    <button class="btn-icon" id="btnHelp" title="Ajuda"><i class="fas fa-question" aria-hidden="true"></i></button>
+                    <button class="btn-icon mobile-only" id="btnToggleNav" type="button" title="Alternar painel" aria-label="Alternar painel móvel">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn-primary" id="btnExportJSON" type="button" title="Salvar projeto (JSON)"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
+                    <button class="btn-icon" id="btnHelp" type="button" title="Ajuda"><i class="fas fa-question" aria-hidden="true"></i></button>
                 </div>
             </header>
 
-            <aside class="panel-left floating-panel" role="complementary">
-                
+            <aside class="panel-left floating-panel" id="leftPanel" role="complementary" aria-label="Ferramentas e pavimentos">
                 <div class="panel-section highlight-section">
                     <div class="header-split">
                         <h4><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Definição do Lote</h4>
                     </div>
-                    
+
                     <div class="lote-control">
                         <p class="hint-text">Defina o perímetro do terreno para calcular os índices.</p>
-                        <button class="btn-secondary full-width" id="btnDrawLote" aria-pressed="false">
+                        <button class="btn-secondary full-width" id="btnDrawLote" type="button" aria-pressed="false">
                             <i class="fas fa-draw-polygon" aria-hidden="true"></i> Desenhar Perímetro do Lote
                         </button>
                     </div>
@@ -78,39 +79,38 @@
                 <div class="panel-section">
                     <h4><i class="fas fa-pen-fancy" aria-hidden="true"></i> Projetar Edificação</h4>
                     <div class="toolbar-grid">
-                        <button class="tool-btn active" data-tool="select" title="Selecionar (V)">
-                            <i class="fas fa-mouse-pointer"></i> <span>Select</span>
+                        <button class="tool-btn active" data-tool="select" type="button" title="Selecionar (V)">
+                            <i class="fas fa-mouse-pointer" aria-hidden="true"></i> <span>Select</span>
                         </button>
-                        <button class="tool-btn" data-tool="pan" title="Pan (Space)">
-                            <i class="fas fa-hand-paper"></i> <span>Pan</span>
+                        <button class="tool-btn" data-tool="pan" type="button" title="Pan (Space)">
+                            <i class="fas fa-hand-paper" aria-hidden="true"></i> <span>Pan</span>
                         </button>
-                        <button class="tool-btn" data-tool="rectangle" title="Retângulo (R)">
-                            <i class="fas fa-vector-square"></i> <span>Ret.</span>
+                        <button class="tool-btn" data-tool="rectangle" type="button" title="Retângulo (R)">
+                            <i class="fas fa-vector-square" aria-hidden="true"></i> <span>Ret.</span>
                         </button>
-                        <button class="tool-btn" data-tool="polygon" title="Polígono (P)">
-                            <i class="fas fa-draw-polygon"></i> <span>Polig.</span>
+                        <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)">
+                            <i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span>
                         </button>
                     </div>
                 </div>
-                
+
                 <div class="divider"></div>
 
                 <div class="panel-section">
-                    <div class="header-split" style="display:flex; align-items:center; gap:8px;">
-                        <h4 style="margin:0;"><i class="fas fa-layer-group" aria-hidden="true"></i> Pavimentos</h4>
-                        <button class="btn-icon" id="btnAddFloor" title="Adicionar Pavimento"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    <div class="header-split floor-header">
+                        <h4><i class="fas fa-layer-group" aria-hidden="true"></i> Pavimentos</h4>
+                        <button class="btn-icon" id="btnAddFloor" type="button" title="Adicionar Pavimento"><i class="fas fa-plus" aria-hidden="true"></i></button>
                     </div>
                     <div id="floorsList" class="list-container" aria-live="polite"></div>
                 </div>
             </aside>
 
-            <aside class="panel-right floating-panel" role="region" aria-label="Índices Urbanísticos">
+            <aside class="panel-right floating-panel" id="rightPanel" role="region" aria-label="Índices Urbanísticos">
                 <div class="panel-header-simple">
-                    <h3 style="margin:0;"><i class="fas fa-chart-pie" aria-hidden="true"></i> Índices Urbanísticos</h3>
+                    <h3><i class="fas fa-chart-pie" aria-hidden="true"></i> Índices Urbanísticos</h3>
                 </div>
 
-                <div class="scrollable-content" style="overflow:auto; padding-bottom:10px;">
-                    
+                <div class="scrollable-content">
                     <div class="metric-card">
                         <div class="metric-header">
                             <span>Taxa de Ocupação (TO)</span>
@@ -143,7 +143,7 @@
 
                     <div class="divider"></div>
 
-                    <h4 style="margin:12px;">Edificações (Pav. Atual)</h4>
+                    <h4 class="section-title">Edificações (Pav. Atual)</h4>
                     <div id="buildingsList" class="list-container buildings-list-scroll" aria-live="polite">
                         <div class="empty-state">Nenhuma edificação neste nível.</div>
                     </div>
@@ -156,6 +156,11 @@
                     <span id="toolHint">Selecione uma ferramenta</span>
                 </div>
             </footer>
+
+            <nav class="mobile-panel-nav floating-panel" aria-label="Navegação rápida">
+                <button type="button" class="mobile-nav-btn active" data-panel-target="left">Ferramentas</button>
+                <button type="button" class="mobile-nav-btn" data-panel-target="right">Índices</button>
+            </nav>
         </div>
     </div>
 
