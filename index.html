@@ -79,18 +79,12 @@
                 <div class="panel-section">
                     <h4><i class="fas fa-pen-fancy" aria-hidden="true"></i> Projetar Edificação</h4>
                     <div class="toolbar-grid">
-                        <button class="tool-btn active" data-tool="select" type="button" title="Selecionar (V)">
-                            <i class="fas fa-mouse-pointer" aria-hidden="true"></i> <span>Select</span>
-                        </button>
-                        <button class="tool-btn" data-tool="pan" type="button" title="Pan (Space)">
-                            <i class="fas fa-hand-paper" aria-hidden="true"></i> <span>Pan</span>
-                        </button>
-                        <button class="tool-btn" data-tool="rectangle" type="button" title="Retângulo (R)">
-                            <i class="fas fa-vector-square" aria-hidden="true"></i> <span>Ret.</span>
-                        </button>
-                        <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)">
-                            <i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span>
-                        </button>
+                        <button class="tool-btn active" data-tool="select" type="button" title="Selecionar (V)"><i class="fas fa-mouse-pointer" aria-hidden="true"></i> <span>Select</span></button>
+                        <button class="tool-btn" data-tool="pan" type="button" title="Pan (Space)"><i class="fas fa-hand-paper" aria-hidden="true"></i> <span>Pan</span></button>
+                        <button class="tool-btn" data-tool="rectangle" type="button" title="Retângulo (R)"><i class="fas fa-vector-square" aria-hidden="true"></i> <span>Ret.</span></button>
+                        <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)"><i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span></button>
+                        <button class="tool-btn" data-tool="edit-building" type="button" title="Editar polígono"><i class="fas fa-bezier-curve" aria-hidden="true"></i> <span>Editar</span></button>
+                        <button class="tool-btn" data-tool="cut" type="button" title="Corte esquemático"><i class="fas fa-cut" aria-hidden="true"></i> <span>Corte</span></button>
                     </div>
                 </div>
 
@@ -161,6 +155,16 @@
                 <button type="button" class="mobile-nav-btn active" data-panel-target="left">Ferramentas</button>
                 <button type="button" class="mobile-nav-btn" data-panel-target="right">Índices</button>
             </nav>
+        </div>
+    </div>
+
+    <div id="cutModal" class="cut-modal" aria-hidden="true">
+        <div class="cut-panel floating-panel">
+            <div class="header-split">
+                <h3>Corte Esquemático</h3>
+                <button id="btnCloseCut" class="btn-icon" type="button"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+            <canvas id="cutCanvas" width="740" height="280"></canvas>
         </div>
     </div>
 
