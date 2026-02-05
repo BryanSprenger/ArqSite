@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UrbanMap Pro v13 - CAD Avançado</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <h2>UrbanMap <span style="font-weight:300">Pro</span></h2>
+        <p>Carregando módulos...</p>
+    </div>
+
+    <div class="app-container">
+        <div class="canvas-layer" id="canvasContainer">
+            <canvas id="drawingCanvas"></canvas>
+        </div>
+
+        <div class="ui-layer">
+            
+            <header class="top-bar floating-panel" role="banner">
+                <div class="brand">
+                    <i class="fas fa-city logo-icon" aria-hidden="true"></i>
+                    <div class="brand-text">
+                        <h1>UrbanMap</h1>
+                        <span class="project-name">Residencial Modelo</span>
+                    </div>
+                </div>
+                
+                <div class="top-stats" role="status" aria-live="polite">
+                    <span class="stat-tag"><i class="fas fa-layer-group" aria-hidden="true"></i> <strong id="headerFloorName">Térreo</strong></span>
+                    <span class="stat-tag"><i class="fas fa-search" aria-hidden="true"></i> <strong id="headerZoom">100%</strong></span>
+                    <span class="stat-tag helper-tag" id="snapStatus"><i class="fas fa-magnet" aria-hidden="true"></i> Snap: ON</span>
+                    <span class="stat-tag helper-tag" id="orthoStatus"><i class="fas fa-ruler-combined" aria-hidden="true"></i> Orto (Shift): OFF</span>
+                </div>
+
+                <div class="user-actions">
+                    <button class="btn-primary" id="btnExportJSON" title="Salvar projeto (JSON)"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
+                    <button class="btn-icon" id="btnHelp" title="Ajuda"><i class="fas fa-question" aria-hidden="true"></i></button>
+                </div>
+            </header>
+
+            <aside class="panel-left floating-panel" role="complementary">
+                
+                <div class="panel-section highlight-section">
+                    <div class="header-split">
+                        <h4><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Definição do Lote</h4>
+                    </div>
+                    
+                    <div class="lote-control">
+                        <p class="hint-text">Defina o perímetro do terreno para calcular os índices.</p>
+                        <button class="btn-secondary full-width" id="btnDrawLote" aria-pressed="false">
+                            <i class="fas fa-draw-polygon" aria-hidden="true"></i> Desenhar Perímetro do Lote
+                        </button>
+                    </div>
+
+                    <div id="loteInfoBox" class="info-box" style="display:none;">
+                        <div class="info-row">
+                            <span>Área Total:</span>
+                            <strong id="loteAreaDisplay">0 m²</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Zoneamento:</span>
+                            <select id="loteZoning" class="mini-select" aria-label="Zoneamento do lote">
+                                <option value="ZR-3">ZR-3</option>
+                                <option value="ZR-4">ZR-4</option>
+                                <option value="ECO-1">Estrutural</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="panel-section">
+                    <h4><i class="fas fa-pen-fancy" aria-hidden="true"></i> Projetar Edificação</h4>
+                    <div class="toolbar-grid">
+                        <button class="tool-btn active" data-tool="select" title="Selecionar (V)">
+                            <i class="fas fa-mouse-pointer"></i> <span>Select</span>
+                        </button>
+                        <button class="tool-btn" data-tool="pan" title="Pan (Space)">
+                            <i class="fas fa-hand-paper"></i> <span>Pan</span>
+                        </button>
+                        <button class="tool-btn" data-tool="rectangle" title="Retângulo (R)">
+                            <i class="fas fa-vector-square"></i> <span>Ret.</span>
+                        </button>
+                        <button class="tool-btn" data-tool="polygon" title="Polígono (P)">
+                            <i class="fas fa-draw-polygon"></i> <span>Polig.</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="divider"></div>
+
+                <div class="panel-section">
+                    <div class="header-split" style="display:flex; align-items:center; gap:8px;">
+                        <h4 style="margin:0;"><i class="fas fa-layer-group" aria-hidden="true"></i> Pavimentos</h4>
+                        <button class="btn-icon" id="btnAddFloor" title="Adicionar Pavimento"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                    </div>
+                    <div id="floorsList" class="list-container" aria-live="polite"></div>
+                </div>
+            </aside>
+
+            <aside class="panel-right floating-panel" role="region" aria-label="Índices Urbanísticos">
+                <div class="panel-header-simple">
+                    <h3 style="margin:0;"><i class="fas fa-chart-pie" aria-hidden="true"></i> Índices Urbanísticos</h3>
+                </div>
+
+                <div class="scrollable-content" style="overflow:auto; padding-bottom:10px;">
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span>Taxa de Ocupação (TO)</span>
+                            <span class="badge-limit">Max: <span id="limitTO">50</span>%</span>
+                        </div>
+                        <div class="metric-main">
+                            <span class="big-number" id="valCurrentTO">0%</span>
+                            <small class="sub-value" id="areaOcupadaDisplay">0 m² ocupados</small>
+                        </div>
+                        <div class="progress-bar" aria-hidden="true">
+                            <div class="progress-fill" id="barTO" style="width: 0%"></div>
+                        </div>
+                        <div class="status-text" id="statusTO">Dentro do limite</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span>Coef. Aproveitamento (CA)</span>
+                            <span class="badge-limit">Max: <span id="limitCA">1.0</span></span>
+                        </div>
+                        <div class="metric-main">
+                            <span class="big-number" id="valCurrentCA">0.00</span>
+                            <small class="sub-value" id="areaTotalConstruidaDisplay">0 m² constr.</small>
+                        </div>
+                        <div class="progress-bar" aria-hidden="true">
+                            <div class="progress-fill" id="barCA" style="width: 0%"></div>
+                        </div>
+                        <div class="status-text" id="statusCA">Dentro do limite</div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <h4 style="margin:12px;">Edificações (Pav. Atual)</h4>
+                    <div id="buildingsList" class="list-container buildings-list-scroll" aria-live="polite">
+                        <div class="empty-state">Nenhuma edificação neste nível.</div>
+                    </div>
+                </div>
+            </aside>
+
+            <footer class="bottom-bar floating-panel" role="contentinfo">
+                <div class="coords" id="mouseCoords">X: 0.00 m, Y: 0.00 m</div>
+                <div class="status-info">
+                    <span id="toolHint">Selecione uma ferramenta</span>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
