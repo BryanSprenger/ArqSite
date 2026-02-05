@@ -9,8 +9,8 @@ class UrbanMapApp {
             isShiftPressed: false
         };
 
-        this.snapDistance = 15;
-        this.pxPerMeter = 10;
+        this.snapDistance = 15; // pixels
+        this.pxPerMeter = 10;   // Escala visual
         this.isDrawing = false;
         this.isDragging = false;
         this.panBySpace = false;
@@ -26,7 +26,7 @@ class UrbanMapApp {
 
     init() {
         this.canvas = new fabric.Canvas('drawingCanvas', {
-            backgroundColor: '#ffffff',
+            backgroundColor: '#e2e8f0',
             selection: true,
             preserveObjectStacking: true,
             fireRightClick: true,
@@ -35,24 +35,26 @@ class UrbanMapApp {
 
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
-
+        
+        // Keyboard
         document.addEventListener('keydown', (e) => this.handleKey(e, true));
         document.addEventListener('keyup', (e) => this.handleKey(e, false));
 
         this.setupCanvasEvents();
         this.setupUIEvents();
 
-        this.addFloor('Térreo', true);
-        this.updateUrbanIndices();
+        // Inicializa Pavimento Térreo
+        this.addFloor('Térreo');
 
+        // Remove Loading com fade
         setTimeout(() => {
             const ls = document.getElementById('loadingScreen');
-            if (ls) ls.style.display = 'none';
-        }, 450);
+            if(ls) ls.style.display = 'none';
+        }, 600);
     }
 
     handleKey(e, isDown) {
-        const tag = (e.target?.tagName || '').toLowerCase();
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
         const isInputContext = ['input', 'textarea', 'select'].includes(tag);
 
         if (!isInputContext && isDown) {
@@ -60,15 +62,13 @@ class UrbanMapApp {
             if (key === 'v') this.setTool('select');
             if (key === 'r') this.setTool('rectangle');
             if (key === 'p') this.setTool('polygon');
-            if (key === 'e') this.setTool('edit-building');
-            if (key === 'c') this.setTool('cut');
         }
 
         if (e.key === 'Shift') {
             this.state.isShiftPressed = isDown;
-            document.getElementById('orthoStatus').innerHTML = isDown
-                ? '<i class="fas fa-ruler-combined"></i> Orto: ON'
-                : '<i class="fas fa-ruler-combined"></i> Orto (Shift): OFF';
+            document.getElementById('orthoStatus').innerHTML = isDown ? 
+                '<i class="fas fa-ruler-combined"></i> Orto: ON' : 
+                '<i class="fas fa-ruler-combined"></i> Orto (Shift): OFF';
         }
 
         if (!isInputContext && e.code === 'Space') {
@@ -103,52 +103,97 @@ class UrbanMapApp {
     resizeCanvas() {
         const container = document.getElementById('canvasContainer');
         if (!container) return;
-        this.canvas.setDimensions({ width: container.clientWidth, height: container.clientHeight }, { backstoreOnly: false });
+        const dpr = window.devicePixelRatio || 1;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+
+        this.canvas.setDimensions({ width: w, height: h }, { backstoreOnly: false });
+        // Ajuste para retina: fabric trata internamente em muitas versões, mas garantir ajuste de objetos
         this.rescaleObjects();
     }
 
+    // --- SNAPPING ---
+    getSnapPoint(pointer) {
+        let closest = null;
+        let minDist = this.snapDistance;
+
+        let candidates = [];
+        if (this.state.lote.obj) candidates.push(this.state.lote.obj);
+        this.state.buildings.forEach(b => { if (b.obj && b.obj.visible) candidates.push(b.obj); });
+
+        candidates.forEach(obj => {
+            const points = this.getObjectVertices(obj);
+            points.forEach(p => {
+                const dist = Math.hypot(p.x - pointer.x, p.y - pointer.y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = { x: p.x, y: p.y };
+                }
+            });
+        });
+
+        return closest;
+    }
+
+    getObjectVertices(obj) {
+        if (!obj) return [];
+        try {
+            obj.setCoords();
+        } catch (e) {}
+        if (obj.type === 'polygon' && obj.points) {
+            const matrix = obj.calcTransformMatrix();
+            return obj.points.map(p => {
+                const point = new fabric.Point(p.x, p.y);
+                return fabric.util.transformPoint(point, matrix);
+            });
+        }
+        if (obj.aCoords) {
+            return [ obj.aCoords.tl, obj.aCoords.tr, obj.aCoords.br, obj.aCoords.bl ];
+        }
+        // fallback
+        return [{x: obj.left, y: obj.top}];
+    }
+
+    // --- ORTHO (15deg) ---
+    applyOrtho(start, current) {
+        if (!this.state.isShiftPressed || !start) return current;
+        const dx = current.x - start.x;
+        const dy = current.y - start.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist === 0) return current;
+
+        const angle = Math.atan2(dy, dx);
+        const step = Math.PI / 12; 
+        const snapped = Math.round(angle / step) * step;
+
+        return {
+            x: start.x + dist * Math.cos(snapped),
+            y: start.y + dist * Math.sin(snapped)
+        };
+    }
+
+    // --- CANVAS EVENTS ---
     setupCanvasEvents() {
+        // ZOOM WHEEL
         this.canvas.on('mouse:wheel', (opt) => {
-            const e = opt.e;
-            const isCtrlZoom = e.ctrlKey || e.metaKey;
-
-            if (isCtrlZoom) {
-                let zoom = this.canvas.getZoom() || 1;
-                zoom *= 0.999 ** e.deltaY;
-                zoom = Math.min(Math.max(zoom, 0.2), 18);
-                this.canvas.zoomToPoint({ x: e.offsetX, y: e.offsetY }, zoom);
-                document.getElementById('headerZoom').innerText = `${Math.round(zoom * 100)}%`;
-            } else {
-                const vpt = this.canvas.viewportTransform;
-                const panX = e.shiftKey ? -e.deltaY : -e.deltaX;
-                const panY = e.shiftKey ? 0 : -e.deltaY;
-                vpt[4] += panX;
-                vpt[5] += panY;
-                this.canvas.requestRenderAll();
-            }
-
-            e.preventDefault();
-            e.stopPropagation();
+            const delta = opt.e.deltaY;
+            let zoom = this.canvas.getZoom() || 1;
+            zoom *= 0.999 ** delta;
+            zoom = Math.min(Math.max(zoom, 0.2), 20);
+            this.canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            document.getElementById('headerZoom').innerText = Math.round(zoom * 100) + '%';
+            opt.e.preventDefault(); opt.e.stopPropagation();
+            // Rescale after a small delay to avoid perf issues
             clearTimeout(this._zoomTimeout);
-            this._zoomTimeout = setTimeout(() => this.rescaleObjects(), 60);
+            this._zoomTimeout = setTimeout(()=> this.rescaleObjects(), 80);
         });
 
-        this.canvas.on('mouse:dblclick', (o) => {
-            if ((this.state.tool === 'polygon' || this.state.tool === 'draw-lote') && this.activePoints?.length >= 3) {
-                this.finishPolygon(this.state.tool === 'draw-lote');
-                return;
-            }
-
-            if ((this.state.tool === 'edit-lote' || this.state.tool === 'edit-building') && o.target?.editablePolygon) {
-                const ptr = this.canvas.getPointer(o.e);
-                this.insertVertexOnNearestEdge(o.target, ptr);
-            }
-        });
-
+        // MOUSE DOWN
         this.canvas.on('mouse:down', (o) => {
             const pointer = this.canvas.getPointer(o.e);
             const activeTool = this.state.tool;
 
+            // Pan
             if (activeTool === 'pan' || o.e.altKey) {
                 this.isDragging = true;
                 this.lastPosX = o.e.clientX;
@@ -156,36 +201,38 @@ class UrbanMapApp {
                 return;
             }
 
-            if (activeTool === 'cut') {
-                const target = o.target;
-                if (target?.isBuilding) this.renderSection(target);
-                return;
-            }
-
             if (['rectangle', 'polygon', 'draw-lote'].includes(activeTool)) {
-                const start = this.getSnapPoint(pointer) || pointer;
-                if (activeTool === 'rectangle') this.startRectangle(start);
-                else this.addPolygonPoint(start, activeTool === 'draw-lote');
+                let startPoint = this.getSnapPoint(pointer) || pointer;
+                if (activeTool === 'rectangle') {
+                    this.startRectangle(startPoint);
+                } else if (activeTool === 'polygon' || activeTool === 'draw-lote') {
+                    this.addPolygonPoint(startPoint, activeTool === 'draw-lote');
+                }
             }
         });
 
+        // MOUSE MOVE
         this.canvas.on('mouse:move', (o) => {
             const pointer = this.canvas.getPointer(o.e);
-            document.getElementById('mouseCoords').innerText = `X: ${(pointer.x / this.pxPerMeter).toFixed(2)} m, Y: ${(pointer.y / this.pxPerMeter).toFixed(2)} m`;
+            const realX = (pointer.x / this.pxPerMeter).toFixed(2);
+            const realY = (pointer.y / this.pxPerMeter).toFixed(2);
+            const mc = document.getElementById('mouseCoords');
+            if(mc) mc.innerText = `X: ${realX} m, Y: ${realY} m`;
 
             if (this.isDragging) {
                 const vpt = this.canvas.viewportTransform;
                 vpt[4] += o.e.clientX - this.lastPosX;
                 vpt[5] += o.e.clientY - this.lastPosY;
-                this.lastPosX = o.e.clientX;
-                this.lastPosY = o.e.clientY;
                 this.canvas.requestRenderAll();
+                this.lastPosX = o.e.clientX; this.lastPosY = o.e.clientY;
                 return;
             }
 
             if (this.isDrawing) {
                 let target = this.getSnapPoint(pointer) || pointer;
-                if (this.activeShapeStart) target = this.applyOrtho(this.activeShapeStart, target);
+                if (this.activeShapeStart) {
+                    target = this.applyOrtho(this.activeShapeStart, target);
+                }
 
                 if (this.state.tool === 'rectangle' && this.activeShape) {
                     this.updateRectanglePreview(target);
