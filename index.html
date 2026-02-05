@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>UrbanMap Pro v14 - CAD Urbanístico</title>
+    <title>UrbanMap Pro v13 - CAD Avançado</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
     <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite">
         <div class="loading-spinner" aria-hidden="true"></div>
-        <h2>UrbanMap <span class="logo-light">Pro</span></h2>
+        <h2>UrbanMap <span style="font-weight:300">Pro</span></h2>
         <p>Carregando módulos...</p>
     </div>
 
@@ -37,19 +37,27 @@
                 </div>
 
                 <div class="user-actions">
-                    <button class="btn-icon mobile-only" id="btnToggleNav" type="button" title="Alternar painel"><i class="fas fa-bars" aria-hidden="true"></i></button>
-                    <button class="btn-primary" id="btnExportJSON" type="button" title="Salvar projeto"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
+                    <button class="btn-icon mobile-only" id="btnToggleNav" type="button" title="Alternar painel" aria-label="Alternar painel móvel">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
+                    <button class="btn-primary" id="btnExportJSON" type="button" title="Salvar projeto (JSON)"><i class="fas fa-save" aria-hidden="true"></i> Salvar</button>
+                    <button class="btn-icon" id="btnHelp" type="button" title="Ajuda"><i class="fas fa-question" aria-hidden="true"></i></button>
                 </div>
             </header>
 
             <aside class="panel-left floating-panel" id="leftPanel" role="complementary" aria-label="Ferramentas e pavimentos">
                 <div class="panel-section highlight-section">
-                    <h4><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Definição do Lote</h4>
-                    <p class="hint-text">Use "Editar" para mover e inserir novos vértices no lote.</p>
-                    <div class="grid-2">
-                        <button class="btn-secondary" id="btnDrawLote" type="button"><i class="fas fa-draw-polygon" aria-hidden="true"></i> Desenhar</button>
-                        <button class="btn-secondary" id="btnEditLote" type="button"><i class="fas fa-pen-ruler" aria-hidden="true"></i> Editar</button>
+                    <div class="header-split">
+                        <h4><i class="fas fa-map-marker-alt" aria-hidden="true"></i> Definição do Lote</h4>
                     </div>
+
+                    <div class="lote-control">
+                        <p class="hint-text">Defina o perímetro do terreno para calcular os índices.</p>
+                        <button class="btn-secondary full-width" id="btnDrawLote" type="button" aria-pressed="false">
+                            <i class="fas fa-draw-polygon" aria-hidden="true"></i> Desenhar Perímetro do Lote
+                        </button>
+                    </div>
+
                     <div id="loteInfoBox" class="info-box" style="display:none;">
                         <div class="info-row">
                             <span>Área Total:</span>
@@ -71,12 +79,18 @@
                 <div class="panel-section">
                     <h4><i class="fas fa-pen-fancy" aria-hidden="true"></i> Projetar Edificação</h4>
                     <div class="toolbar-grid">
-                        <button class="tool-btn active" data-tool="select" type="button" title="Selecionar (V)"><i class="fas fa-mouse-pointer" aria-hidden="true"></i> <span>Select</span></button>
-                        <button class="tool-btn" data-tool="pan" type="button" title="Pan (Space)"><i class="fas fa-hand-paper" aria-hidden="true"></i> <span>Pan</span></button>
-                        <button class="tool-btn" data-tool="rectangle" type="button" title="Retângulo (R)"><i class="fas fa-vector-square" aria-hidden="true"></i> <span>Ret.</span></button>
-                        <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)"><i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span></button>
-                        <button class="tool-btn" data-tool="edit-building" type="button" title="Editar polígono"><i class="fas fa-bezier-curve" aria-hidden="true"></i> <span>Editar</span></button>
-                        <button class="tool-btn" data-tool="cut" type="button" title="Corte esquemático"><i class="fas fa-cut" aria-hidden="true"></i> <span>Corte</span></button>
+                        <button class="tool-btn active" data-tool="select" type="button" title="Selecionar (V)">
+                            <i class="fas fa-mouse-pointer" aria-hidden="true"></i> <span>Select</span>
+                        </button>
+                        <button class="tool-btn" data-tool="pan" type="button" title="Pan (Space)">
+                            <i class="fas fa-hand-paper" aria-hidden="true"></i> <span>Pan</span>
+                        </button>
+                        <button class="tool-btn" data-tool="rectangle" type="button" title="Retângulo (R)">
+                            <i class="fas fa-vector-square" aria-hidden="true"></i> <span>Ret.</span>
+                        </button>
+                        <button class="tool-btn" data-tool="polygon" type="button" title="Polígono (P)">
+                            <i class="fas fa-draw-polygon" aria-hidden="true"></i> <span>Polig.</span>
+                        </button>
                     </div>
                 </div>
 
@@ -85,11 +99,7 @@
                 <div class="panel-section">
                     <div class="header-split floor-header">
                         <h4><i class="fas fa-layer-group" aria-hidden="true"></i> Pavimentos</h4>
-                        <div class="inline-actions">
-                            <button class="btn-icon" id="btnAddFloor" type="button" title="Adicionar"><i class="fas fa-plus" aria-hidden="true"></i></button>
-                            <button class="btn-icon" id="btnRenameFloor" type="button" title="Renomear"><i class="fas fa-i-cursor" aria-hidden="true"></i></button>
-                            <button class="btn-icon" id="btnRemoveFloor" type="button" title="Remover"><i class="fas fa-trash" aria-hidden="true"></i></button>
-                        </div>
+                        <button class="btn-icon" id="btnAddFloor" type="button" title="Adicionar Pavimento"><i class="fas fa-plus" aria-hidden="true"></i></button>
                     </div>
                     <div id="floorsList" class="list-container" aria-live="polite"></div>
                 </div>
@@ -110,7 +120,9 @@
                             <span class="big-number" id="valCurrentTO">0%</span>
                             <small class="sub-value" id="areaOcupadaDisplay">0 m² ocupados</small>
                         </div>
-                        <div class="progress-bar"><div class="progress-fill" id="barTO" style="width: 0%"></div></div>
+                        <div class="progress-bar" aria-hidden="true">
+                            <div class="progress-fill" id="barTO" style="width: 0%"></div>
+                        </div>
                         <div class="status-text" id="statusTO">Dentro do limite</div>
                     </div>
 
@@ -123,7 +135,9 @@
                             <span class="big-number" id="valCurrentCA">0.00</span>
                             <small class="sub-value" id="areaTotalConstruidaDisplay">0 m² constr.</small>
                         </div>
-                        <div class="progress-bar"><div class="progress-fill" id="barCA" style="width: 0%"></div></div>
+                        <div class="progress-bar" aria-hidden="true">
+                            <div class="progress-fill" id="barCA" style="width: 0%"></div>
+                        </div>
                         <div class="status-text" id="statusCA">Dentro do limite</div>
                     </div>
 
@@ -138,23 +152,15 @@
 
             <footer class="bottom-bar floating-panel" role="contentinfo">
                 <div class="coords" id="mouseCoords">X: 0.00 m, Y: 0.00 m</div>
-                <div class="status-info"><span id="toolHint">Selecione uma ferramenta</span></div>
+                <div class="status-info">
+                    <span id="toolHint">Selecione uma ferramenta</span>
+                </div>
             </footer>
 
             <nav class="mobile-panel-nav floating-panel" aria-label="Navegação rápida">
                 <button type="button" class="mobile-nav-btn active" data-panel-target="left">Ferramentas</button>
                 <button type="button" class="mobile-nav-btn" data-panel-target="right">Índices</button>
             </nav>
-        </div>
-    </div>
-
-    <div id="cutModal" class="cut-modal" aria-hidden="true">
-        <div class="cut-panel floating-panel">
-            <div class="header-split">
-                <h3>Corte Esquemático</h3>
-                <button id="btnCloseCut" class="btn-icon" type="button"><i class="fas fa-times" aria-hidden="true"></i></button>
-            </div>
-            <canvas id="cutCanvas" width="740" height="280"></canvas>
         </div>
     </div>
 
